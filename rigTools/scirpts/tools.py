@@ -11,3 +11,5 @@
 """
 objects = makeList(cmds.ls(sl=True)) + makeList(cmds.ls(hl=True))
 cmds.ngSkinRelax(objects, **{'numSteps' : 2,'stepSize' : 0.02})
+
+'''add'''
