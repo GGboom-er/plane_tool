@@ -56,11 +56,10 @@ def addDirveAttr():
                     # 更新软限制
                     cmds.addAttr(full_attr, edit=True, softMinValue=soft_min, softMaxValue=soft_max)
 
-
 def create_and_connect_file_node( texture_path, nodeName ):
     # 创建 file 节点
     if not cmds.objExists(nodeName):
-        nodeName = cmds.shadingNode('file', n=nodeName, asTexture=True, isColorManaged=True)
+        nodeName = cmds.shadingNode('file', n=nodeName, asShader=True, isColorManaged=True)
     else:
         nodeName = nodeName  # 使用现有的节点名
 
@@ -256,13 +255,12 @@ def remove_unused_layers(unused_layers):
 def remove_unused_layered_textures(layered_textures):
     if not cmds.listConnections(layered_textures, source=False, destination=True):
         cmds.delete(layered_textures)
-# 主函数
+
 def clean_layered_textures(layered_textures):
 
     unused_layers = check_layered_texture_usage(layered_textures)
     remove_unused_layers(unused_layers)
     remove_unused_layered_textures(layered_textures)
-
 
 def insert_files_to_layered_texture(layered_texture, file_nodes):
     # 获取当前Layer Texture节点中的所有层
@@ -303,7 +301,112 @@ def insert_files_to_layered_texture(layered_texture, file_nodes):
 
             connected_nodes.add(file_node)
 
+#创建完驱动后需要输出给cache，传递给lgt
+import maya.cmds as cmds
 
+def buildFacialInfo(textureNode, dirveName='cache', direction='node_to_cache'):
+    """
+    为指定的节点在cache组上添加一个自定义float属性，并根据方向参数决定连接方向。
+
+    :param textureNode: 需要连接的节点名称
+    :param dirveName: 需要添加属性的cache组名称
+    :param direction: 控制连接方向，默认值为 'node_to_cache'。
+                      可选值:
+                      - 'node_to_cache'：节点的cgr属性控制cache的属性（默认）。
+                      - 'cache_to_node'：cache的属性控制节点的cgr属性。
+    """
+    # 检查节点是否存在
+    if not cmds.objExists(textureNode):
+        cmds.error("节点 '{}' 不存在。".format(textureNode))
+        return
+
+    # 检查cache组是否存在
+    if not cmds.objExists(dirveName):
+        cmds.error("Cache组 '{}' 不存在。".format(dirveName))
+        return
+
+    # 使用传递的 textureNode 名称作为属性名称
+    attr_name = textureNode
+
+    # 为 cache 组添加一个 float 类型的自定义属性
+    if not cmds.attributeQuery(attr_name, node=dirveName, exists=True):
+        cmds.addAttr(dirveName, longName=attr_name, attributeType='float', keyable=True)
+
+    # 获取节点的 cgr 属性
+    cgr_attr = "{}.cgr".format(textureNode)
+    if not cmds.objExists(cgr_attr):
+        cmds.error("{} 上不存在 'cgr' 属性。".format(textureNode))
+        return
+
+    # 根据 direction 参数决定连接方向
+    if direction == 'node_to_cache':
+        # 节点的 cgr 属性控制 cache 组的属性
+        cmds.connectAttr(cgr_attr, "{}.{}".format(dirveName, attr_name), force=True)
+        print("成功连接：'{}.{}' 由 '{}' 控制".format(dirveName, attr_name, cgr_attr))
+
+    elif direction == 'cache_to_node':
+        # cache 组的属性控制节点的 cgr 属性
+        cmds.connectAttr("{}.{}".format(dirveName, attr_name), cgr_attr, force=True)
+        cmds.setAttr(dirveName+'.'+attr_name,1.0)
+        print("成功连接：'{}' 由 '{}.{}' 控制".format(cgr_attr, dirveName, attr_name))
+
+    else:
+        cmds.error("无效的 direction 参数。请使用 'node_to_cache' 或 'cache_to_node'。")
+
+
+def split_layered_texture( node_name, layer_limit=7 ):
+    # 检查节点是否是 layeredTexture
+    if not cmds.nodeType(node_name) == "layeredTexture":
+        raise ValueError("指定的节点不是一个 layeredTexture 节点")
+
+    # 获取图层数量
+    layers = cmds.getAttr("{}.inputs".format(node_name), multiIndices=True)
+
+    if len(layers) <= layer_limit:
+        print("图层数量在限制范围内，无需拆分")
+        return node_name  # 如果没有超出限制，返回原始节点
+
+    # 保留前 7 层连接
+    layers_to_keep = layers[:layer_limit]
+    remaining_layers = layers[layer_limit:]
+
+    # 创建新的 layeredTexture 节点来存储多余的层
+    new_layered_node = cmds.shadingNode("layeredTexture", asShader=True)
+
+    # 移动多余的层到新节点，并保留节点连接
+    for i, layer_index in enumerate(remaining_layers):
+        source_attr_prefix = "{}.inputs[{}]".format(node_name, layer_index)
+
+        # 查询需要移动的属性
+        connected_attributes = ["color", "alpha", "blendMode"]  # 常见属性
+        for attr in connected_attributes:
+            source_attr = "{}.{}".format(source_attr_prefix, attr)
+            connections = cmds.listConnections(source_attr, plugs=True, destination=False)
+            if connections:
+                dest_attr = "{}.inputs[{}].{}".format(new_layered_node, i, attr)
+                cmds.connectAttr(connections[0], dest_attr, force=True)
+            else:
+                # 如果没有连接，但需要复制静态值
+                if cmds.objExists(source_attr):
+                    value = cmds.getAttr(source_attr)
+                    if attr == "color":
+                        cmds.setAttr("{}.inputs[{}].{}".format(new_layered_node, i, attr), value[0][0], value[0][1],
+                                     value[0][2], type="double3")
+                    else:
+                        cmds.setAttr("{}.inputs[{}].{}".format(new_layered_node, i, attr), value)
+
+    # 删除旧的连接
+    for layer_index in remaining_layers:
+        cmds.removeMultiInstance("{}.inputs[{}]".format(node_name, layer_index), b=True)
+    # 查找原始节点的第 8 层
+    existing_layers = cmds.getAttr("{}.inputs".format(node_name), multiIndices=True)
+    new_layer_index = max(existing_layers) + 1 if existing_layers else 0
+    # 将新的 layeredTexture 节点作为第 8 层连接回原始节点
+    cmds.setAttr("{}.inputs[{}].blendMode".format(node_name, new_layer_index), 0)  # 默认设置为混合模式
+    cmds.connectAttr("{}.outColor".format(new_layered_node), "{}.inputs[{}].color".format(node_name, new_layer_index),
+                     force=True)
+    print("已完成拆分，新的 layeredTexture 节点为：{}".format(new_layered_node))
+    return new_layered_node
 
 
 

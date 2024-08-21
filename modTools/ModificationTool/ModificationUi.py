@@ -3,6 +3,7 @@
 from PySide2 import QtWidgets, QtCore, QtGui
 from shiboken2 import wrapInstance
 import maya.OpenMayaUI as omui
+import re
 import maya.cmds as mc, maya.mel as mm, os, re,sys, ModificationSystem as ms ,facialTextureSysteam as fts
 reload(ms)
 reload(fts)
@@ -469,7 +470,8 @@ class FacialTextureClass(QtWidgets.QDialog):
     def __init__(self, parent=None):
         super(FacialTextureClass, self).__init__(parent=parent)
         FacialTextureClass.instance = self
-        self.DefaultPath = r's:\Project\wmrs\sourceimages\chr'
+        self.DefaultPath = r'x:\Project\wmrs\sourceimages\chr'
+        self.localPath = r's:\Project\wmrs\sourceimages\chr'
         self.ctrlDict = {
             'L_BrowInnerIn': 'EyeBrowInner_L.squeeze', 'R_BrowInnerIn': 'EyeBrowInner_R.squeeze',
             'L_Eyelid': 'EyeBrowInner_L.translateY', 'R_Eyelid': 'EyeBrowInner_R.translateY',
@@ -482,12 +484,12 @@ class FacialTextureClass(QtWidgets.QDialog):
         self.setObjectName('facialTextureUi')
         self.row_groups = []  # 用于记录每次添加的子QTableWidget
         self.buttons = [
-            ('BrowInner', {"L_BrowInnerIn": "PATH","R_BrowInnerIn": "PATH"}),
-            ('Eyelid', {"L_Eyelid": "PATH", "R_Eyelid": "PATH"}),
-            ('BrowRegionDown', {"L_BrowRegionDown": "PATH", "R_BrowRegionDown": "PATH"}),
-            ('Wrinkle', {"L_Wrinkle": "PATH", "R_Wrinkle": "PATH"}),
-            ('Nose', {"M_Nose_B": "PATH", "L_Nose": "PATH", "R_Nose": "PATH"}),
-            ('Lips', {"M_Lips_B": "PATH"})
+            (u'BrowInner皱眉', {"L_BrowInnerIn": "PATH","R_BrowInnerIn": "PATH"}),
+            (u'Eyelid眉底（小）', {"L_Eyelid": "PATH", "R_Eyelid": "PATH"}),
+            (U'BrowRegionDown眉底（大）', {"L_BrowRegionDown": "PATH", "R_BrowRegionDown": "PATH"}),
+            (U'Wrinkle鼻侧', {"L_Wrinkle": "PATH", "R_Wrinkle": "PATH"}),
+            (U'Nose鼻子', {"M_Nose_B": "PATH", "L_Nose": "PATH", "R_Nose": "PATH"}),
+            (U'Lips唇底', {"M_Lips_B": "PATH"})
         ]
         self.initUI()
     def initUI(self):
@@ -524,8 +526,8 @@ class FacialTextureClass(QtWidgets.QDialog):
         self.mainTableWidget.horizontalHeader().setSectionResizeMode(QtWidgets.QHeaderView.Stretch)
 
         initialLayout = QtWidgets.QHBoxLayout()
-        initialLayout.addWidget(QtWidgets.QLabel("表情驱动部位:"))
-        initialLayout.addWidget(QtWidgets.QLabel("表情贴图路径:"))
+        initialLayout.addWidget(QtWidgets.QLabel(u"表情驱动部位:"))
+        initialLayout.addWidget(QtWidgets.QLabel(u"表情贴图路径:"))
 
         initialWidget = QtWidgets.QWidget()
         initialWidget.setLayout(initialLayout)
@@ -547,14 +549,18 @@ class FacialTextureClass(QtWidgets.QDialog):
         self.mainLayout.addLayout(self.buttonLayout)
 
         # 添加底部按钮
-        bottomButtonA = QtWidgets.QPushButton(u"规范贴图路径", self)
+        bottomButtonA = QtWidgets.QPushButton(u"规范贴图至本地并连接", self)
         bottomButtonA.clicked.connect(self.StandardizeTexturePath)
         self.mainLayout.addWidget(bottomButtonA)
 
         # 添加底部按钮
-        bottomButton = QtWidgets.QPushButton(u"创建驱动", self)
+        bottomButton = QtWidgets.QPushButton(u"创建绑定驱动表情贴图", self)
         bottomButton.clicked.connect(self.createDirve)
         self.mainLayout.addWidget(bottomButton)
+        #添加lgt入库时表情贴图信息传递接口
+        connectFacialNode = QtWidgets.QPushButton(u"lgt添加表情贴图连接接口", self)
+        connectFacialNode.clicked.connect(self.createFacialNodeConnect)
+        self.mainLayout.addWidget(connectFacialNode)
 
         # 设置窗口的主要布局
         self.setLayout(self.mainLayout)
@@ -727,7 +733,14 @@ class FacialTextureClass(QtWidgets.QDialog):
             self.textureLayerName.setText(self.textureLayerNode[0])
         self.filePath = mc.file(q=True, sceneName=True).split('/')[-1] or [u'存一下文件确保文件符合命名规范']
         if self.filePath:
-            self.chrName.setText(self.filePath.split('_')[2])
+            #更新了文件命名规则
+            match = re.search(r'chr_([a-zA-Z]+)', self.filePath)
+            if match:
+                self.chrName.setText(match.group(1))
+            else:
+                # 如果未匹配成功，可以设置一个默认值或者提示错误
+                self.chrName.setText(u'存一下文件确保文件符合命名规范')
+
 
     def getAllTableData( self ):
         self.data_dict = {}
@@ -763,30 +776,44 @@ class FacialTextureClass(QtWidgets.QDialog):
                 path = info['path']
                 textureNode = fts.create_and_connect_file_node(nodeName=textureNode, texture_path=path)
                 fileNode.append(textureNode)
-                if dirve == 'Eyelid':
+                if 'Eyelid' in dirve :
                     textureNodeList = list()
-                    if 'BrowRegionDown' in self.data_dict:
+                    if u'BrowRegionDown眉底（大）' in self.data_dict.keys():
                         textureNodeList.append(textureNode)
-                        BrowRegionDownInfo =self.data_dict['BrowRegionDown'][name.replace('Eyelid','BrowRegionDown')]
+                        BrowRegionDownInfo =self.data_dict[u'BrowRegionDown眉底（大）'][name.replace('Eyelid','BrowRegionDown')]
                         BrowRegionDownNodeName = fts.create_and_connect_file_node(nodeName=BrowRegionDownInfo['nodeName'], texture_path=BrowRegionDownInfo['path'])
                         textureNodeList.append(BrowRegionDownNodeName)
-                        fileNode.append(textureNode)
+                        fileNode.append(BrowRegionDownNodeName)
                         fts.EyeLidDirveFn(EyeLid = ctrlName,EyeBrowRegion =ctrlName.replace('EyeBrowInner','EyeBrowRegion'),textureNode = textureNodeList)
+                        fts.buildFacialInfo(BrowRegionDownNodeName, 'cache', direction='node_to_cache')
                     else:
                         textureNodeList.append(textureNode)
                         fts.EyeLidDirveFn(EyeLid = ctrlName,textureNode = [textureNode])
-                elif dirve == 'BrowRegionDown':
+                elif 'BrowRegionDown' in dirve :
                     continue
-                elif dirve == 'BrowInner':
+                elif 'BrowInner' in dirve :
                     fts.BrowLnnerDirveFn(ctrlName = ctrlName,textureNode = textureNode)
-                elif dirve == 'Wrinkle':
+                elif 'Wrinkle' in dirve:
                     fts.WrinkleDirveFn(ctrlName,textureNode)
-                elif dirve == 'Nose':
+                elif 'Nose' in dirve :
                     fts.NoseDirveFn(ctrlName = ctrlName,textureNode = textureNode,type = name)
-                elif dirve == 'Lips':
+                elif 'Lips' in dirve :
                     fts.LipsDirveFn(ctrlName = ctrlName,textureNode = textureNode)
+                fts.buildFacialInfo(textureNode,'cache',direction='node_to_cache')
         fts.insert_files_to_layered_texture(self.textureLayerName.text(),fileNode)
-
+        fts.split_layered_texture(self.textureLayerName.text())
+    def createFacialNodeConnect( self ):
+        self.getAllTableData()
+        fileNode = list()
+        for dirve, infos in self.data_dict.items():
+            for name, info in infos.items():
+                textureNode = info['nodeName']
+                path = info['path']
+                textureNode = fts.create_and_connect_file_node(nodeName=textureNode, texture_path=path)
+                fts.buildFacialInfo(textureNode,'cache',direction='cache_to_node')
+                fileNode.append(textureNode)
+        fts.insert_files_to_layered_texture(self.textureLayerName.text(),fileNode)
+        fts.split_layered_texture(self.textureLayerName.text())
     def setAllTableData( self, data_dict ):
         for button, subTableWidget in self.row_groups:
             title = subTableWidget.item(0, 0).text()
@@ -814,7 +841,7 @@ class FacialTextureClass(QtWidgets.QDialog):
         for dirve, infos in self.data_dict.items():
             for name, info in infos.items():
                 sorcepath = info['path']
-                path = self.DefaultPath + r'\\' + self.chrName.text() + r'\rig\facial\\' + name + '.tif'
+                path = self.localPath + r'\\' + self.chrName.text() + r'\rig\facial\\' + name + '.tif'
                 if os.path.abspath(sorcepath) != os.path.abspath(path):
                     fts.copy_and_rename_file(sorcepath,path)
                 else:
