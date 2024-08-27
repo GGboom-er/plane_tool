@@ -20,7 +20,7 @@ def get_name_without_namespace( name ):
 
 def get_shape_node( node ):
     """获取给定节点的形状节点。"""
-    shapes = cmds.listRelatives(node, children=True, shapes=True)
+    shapes = cmds.listRelatives(node, children=True, shapes=True, ni=1)
     return shapes[0] if shapes else None
 
 
@@ -40,7 +40,7 @@ def compare_vertex_positions( shape1, shape2 ):
     if len(points1) != len(points2):
         return None, len(points1), len(points2)  # 不同数量的顶点，无法比较
 
-    diff_count = [p1.distanceTo(p2) for p1, p2 in zip(points1, points2) if p1.distanceTo(p2) > 0.00001]
+    diff_count = [p1.distanceTo(p2) for p1, p2 in zip(points1, points2) if p1.distanceTo(p2) > 0.0001]
     diff_rate = len(diff_count) / float(len(points1)) if len(points1) > 0 else 0
     if len(diff_count) > 0:
         maxValue = max(diff_count)
@@ -67,6 +67,7 @@ def match_hierarchy_recursive( reference_node, target_node, target_lookup, unmat
             cmds.reorder(target_child, b=1)  # 保持层级调整逻辑
 
             target_child_shape_node = get_shape_node(target_child)
+
             ref_child_shape_node = get_shape_node(ref_child)
             if target_child_shape_node and ref_child_shape_node:
                 target_child_Orig_node = target_child_shape_node + "Orig"  # 假设原始形状节点命名规则
@@ -77,7 +78,7 @@ def match_hierarchy_recursive( reference_node, target_node, target_lookup, unmat
 
                         unmatched_nodes['Difference'].append((ref_child_shape_node, target_child_Orig_node, diff_rate))
 
-                    else:
+                    elif diff_rate[0] == None:
                         print('===No match point===:\n%s===%s\n%s===%s\n' % (
                             ref_child_shape_node, diff_rate[1], target_child_Orig_node, diff_rate[2]))
             match_hierarchy_recursive(ref_child, target_child, target_lookup, unmatched_nodes)
@@ -105,12 +106,13 @@ def match_hierarchy( reference_group, target_group ):
 
 
 # 使用示例1
-unmatched = match_hierarchy("tbx_chr_xiaqing_tex_refinement_v003:cache", "cache")
+unmatched = match_hierarchy("tbx_chr_rockmilktea_atp_atp_v002:cache", "cache")
 print("Unmatched in reference group:", unmatched['reference'])
 print("Unmatched in target group:", unmatched['target'])
 for i in unmatched['Difference']:
-    print("Difference rate between {} and {}: {:2%}".format(i[0], i[1], i[2][0]))
-    print('maxValue:%s======minValue:%s\n' % (i[2][1], i[2][2]))
+    if i[2][1] != 0.0:
+        print("Difference rate between {} and {}: {:2%}".format(i[0], i[1], i[2][0]))
+        print('maxValue:%s======minValue:%s\n' % (i[2][1], i[2][2]))
 
 
 
