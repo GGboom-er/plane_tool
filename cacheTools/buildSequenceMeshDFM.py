@@ -1,4 +1,16 @@
 import bpy
+def get_object_hierarchy_path(obj):
+    """
+    获取选中物体在大纲中的绝对路径
+    :param obj: 目标物体
+    :return: 物体的绝对路径字符串
+    """
+    path = obj.name
+    parent = obj.parent
+    while parent:
+        path = parent.name + "/" + path
+        parent = parent.parent
+    return path
 
 
 def add_mesh_sequence_cache_to_selected( cache_path ):
@@ -39,7 +51,8 @@ def add_mesh_sequence_cache_to_selected( cache_path ):
         shape_name = obj.data.name.replace('.', '_')
 
         # 设置Object Path，格式为 /group10/当前物体名/当前物体shape名
-        object_path = f"/group10/{obj_name}/{shape_name}"
+        object_path = get_object_hierarchy_path(obj).replace('Group/cache/','/Group/Geometry/cache/')
+
         modifier.object_path = object_path
 
         print(
@@ -47,5 +60,5 @@ def add_mesh_sequence_cache_to_selected( cache_path ):
 
 
 # 使用函数
-cache_path = r"U:\ywm\ssx\cache\jodInCircle.abc"  # 缓存文件路径
+cache_path = r"C:\Users\yuweiming\Documents\WXWork\1688853827944262\Cache\File\2024-09\Geometry.usd"  # 缓存文件路径
 add_mesh_sequence_cache_to_selected(cache_path)

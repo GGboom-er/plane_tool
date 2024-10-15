@@ -16,14 +16,12 @@ def disable_and_remove_modifiers():
     for obj in bpy.data.objects:
         # 检查对象是否为Mesh类型
         if obj.type == 'MESH':
-            # 获取对象的所有变形器
+            # 获取对象的所有变形器并禁用
             for modifier in obj.modifiers:
-                # 禁用变形器
                 modifier.show_viewport = False
                 modifier.show_render = False
-                # 删除变形器
-                bpy.context.view_layer.objects.active = obj
-                bpy.ops.object.modifier_remove(modifier=modifier.name)
+            # 直接删除对象的所有变形器
+            obj.modifiers.clear()
 
 # 调用函数
 disable_and_remove_modifiers()
