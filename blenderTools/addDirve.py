@@ -66,4 +66,5 @@ def add_driver_to_selected_node( input_index, driver_object_name, driver_propert
 
 # 示例调用：
 # 选中物体，选中节点后调用该函数
-add_driver_to_selected_node(1, "Group", "prop", "var * 0.1")
+add_driver_to_selected_node(1, "data", "mod_saturation", "var")
+add_driver_to_selected_node(0, "data", "mod_color", "var")

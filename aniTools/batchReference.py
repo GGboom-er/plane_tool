@@ -63,3 +63,40 @@ print("导入的命名空间: ", imported_namespaces)
 for ns in imported_namespaces:
     imported_objects = cmds.ls("{}:*".format(ns))
     print("命名空间 {} 导入的物体: {}".format(ns, imported_objects))
+
+import os
+import sys
+import maya.cmds as cmds
+
+
+def batch_import_characters( file_paths ):
+    if not isinstance(file_paths, list):
+        raise ValueError("文件路径必须是列表！")
+
+    for file_path in file_paths:
+        if not os.path.isfile(file_path):
+            print("文件不存在：{}".format(file_path))
+            continue
+
+        for i in range(1):  # 每个文件导入四次
+            namespace = "char_{}_{}".format(os.path.basename(file_path).split('.')[0], i + 1)
+            cmds.file(file_path, r=True, namespace=namespace, ignoreVersion=True)
+
+            # 设置导入的模型位置，避免完全重叠
+            print("导入：{} 第{}次".format(file_path, i + 1))
+
+
+# 示例文件路径列表
+file_list = [
+    r"X:\Project\tbx\pub\asset_lib\chr\ctboychange\rig\task_master\tbx_chr_ctboychange_rig_master_v001.ma",
+    r"X:\Project\tbx\pub\asset_lib\chr\ctmaturefemalechange\rig\task_master\tbx_chr_ctmaturefemalechange_rig_master_v002.ma",
+    r"X:\Project\tbx\pub\asset_lib\chr\ctmaturemaleachange\rig\task_master\tbx_chr_ctmaturemaleachange_rig_master_v001.ma",
+    r"X:\Project\tbx\pub\asset_lib\chr\ctpupilboycchange\rig\task_master\tbx_chr_ctpupilboycchange_rig_master_v001.ma",
+    r"X:\Project\tbx\pub\asset_lib\chr\ctyoungmanachange\rig\task_master\tbx_chr_ctyoungmanachange_rig_master_v002.ma",
+    r"X:\Project\tbx\pub\asset_lib\chr\ctyoungmanbchange\rig\task_master\tbx_chr_ctyoungmanbchange_rig_master_v001.ma",
+    r"X:\Project\tbx\pub\asset_lib\chr\ctyoungwomanachange\rig\task_master\tbx_chr_ctyoungwomanachange_rig_master_v001.ma",
+    r"X:\Project\tbx\pub\asset_lib\chr\ctyoungwomanbchange\rig\task_master\tbx_chr_ctyoungwomanbchange_rig_master_v001.ma"
+]
+
+# 执行批量导入
+batch_import_characters(file_list)

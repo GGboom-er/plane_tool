@@ -9,6 +9,7 @@
 @date: 2024/4/15 17:25
 @desc: 
 """
+from __future__ import print_function  # 兼容 Python 2 和 Python 3
 import maya.cmds as cmds
 
 
@@ -34,18 +35,14 @@ def create_blendshapes_from_groups( group_a, group_b ):
                 print("Vertex count mismatch for '{}'".format(name))
         else:
             print("No matching model found for '{}' in group_b".format(name))
-
-
 def on_create_blendshapes_pressed():
     selection = cmds.ls(selection=True, long=True)
     if len(selection) < 2:
         cmds.warning("Please select two groups.")
         return
-
     # Assuming the first selected is group_a and the second selected is group_b
     group_a = selection[0]
     group_b = selection[1]
-
     create_blendshapes_from_groups(group_a, group_b)
 def create_blendshapes_ui():
     if cmds.window("blendShapeWindow", exists=True):
@@ -56,12 +53,8 @@ def create_blendshapes_ui():
     cmds.button(label="Create BlendShapes", command=lambda x: on_create_blendshapes_pressed())
     cmds.showWindow(window)
 '''
-create_blendshapes_ui()
+create_blendshapes_ui()#名称查找批量创建bs
 '''
-import maya.cmds as cmds
-
-import maya.cmds as cmds
-
 
 def add_blend_shapes():
     # 获取当前选中的物体
@@ -122,10 +115,167 @@ def add_blend_shapes():
     # 返回无效模型列表
     return invalid_models
 
+'''
+# 执行函数并获取无效模型列表
+invalid_models = add_blend_shapes()#————选择对应模型创建bs节点
+if invalid_models:
+    print("以下模型未能通过拓扑检查，无法添加为BlendShape目标：", invalid_models)
+else:
+    print("所有模型都已成功添加到BlendShape节点。")
+'''
 
-# # 执行函数并获取无效模型列表
-# invalid_models = add_blend_shapes()
-# if invalid_models:
-#     print("以下模型未能通过拓扑检查，无法添加为BlendShape目标：", invalid_models)
-# else:
-#     print("所有模型都已成功添加到BlendShape节点。")
+
+
+def get_blendshape_nodes_for_selection():
+    """获取当前选中模型的 BlendShape 节点。"""
+    selected_objects = cmds.ls(selection=True, type='transform')
+    blendshape_nodes = {}
+
+    if not selected_objects:
+        cmds.warning("请先选择一个或多个模型。")
+        return blendshape_nodes
+
+    for obj in selected_objects:
+        # 获取模型的形状节点
+        shapes = cmds.listRelatives(obj, shapes=True, type='mesh', fullPath=True) or []
+
+        for shape in shapes:
+            # 查找与该形状节点相关的 BlendShape 节点
+            history = cmds.listHistory(shape, future=True, pruneDagObjects=True) or []
+            bs_nodes = cmds.ls(history, type='blendShape')
+
+            if bs_nodes:
+                blendshape_nodes[obj] = bs_nodes[0]  # 每个模型对应的第一个 BlendShape 节点
+
+    return blendshape_nodes
+def connect_attribute_to_blendshape( attr_name, bs_name, bs_index ):
+    """
+    将给定的属性与 BlendShape 的特定 index 进行连接。
+
+    参数：
+    attr_name: 要连接的属性名（格式为 "节点.属性"）。
+    bs_name: BlendShape 节点的名称。
+    bs_index: BlendShape 的目标索引。
+    """
+    bs_attr = "{}.weight[{}]".format(bs_name, bs_index)
+
+    # 检查属性和 BlendShape 权重是否存在
+    if not cmds.objExists(attr_name):
+        cmds.warning("属性 {} 不存在。".format(attr_name))
+        return
+
+    if not cmds.objExists(bs_attr):
+        cmds.warning("BlendShape 权重 {} 不存在。".format(bs_attr))
+        return
+
+    # 创建连接
+    try:
+        cmds.connectAttr(attr_name, bs_attr, force=True)
+        print("已将 {} 连接到 {}。".format(attr_name, bs_attr))
+    except Exception as e:
+        cmds.warning("连接失败: {}".format(str(e)))
+# 主程序
+def main( attr_name, bs_index ):
+    """
+    主程序，获取选中模型的 BlendShape 节点并将其与属性连接。
+
+    参数：
+    attr_name: 要连接的属性名（格式为 "节点.属性"）。
+    bs_index: BlendShape 的目标索引。
+    """
+    blendshape_nodes = get_blendshape_nodes_for_selection()
+
+    if not blendshape_nodes:
+        print("未找到任何 BlendShape 节点。")
+        return
+
+    for obj, bs_node in blendshape_nodes.items():
+        print("在 {} 上找到 BlendShape 节点: {}".format(obj, bs_node))
+        connect_attribute_to_blendshape(attr_name, bs_node, bs_index)
+'''
+# 使用示例：传入属性名称和 BlendShape 的索引
+# 示例：将 "controller1.attr" 连接到 BlendShape 的索引 0
+main("condition12.outColor.outColorR", 1)#批量将属性连接至选中模型的指定bs索引
+'''
+
+from __future__ import print_function
+import pymel.core as pm
+import maya.cmds as cmds
+import sys
+
+# 检查 Python 版本
+PY2 = sys.version_info[0] == 2
+
+
+def get_blendshape_aliases_dict( blendshape_node ):
+    """
+    获取 BlendShape 节点的权重别名与属性名称的对应字典。
+
+    :param blendshape_node: BlendShape 节点名称
+    :return: {别名: 完整属性路径} 的字典
+    """
+    if not cmds.objExists(blendshape_node):
+        raise ValueError("BlendShape 节点 {} 不存在！".format(blendshape_node))
+
+    aliases = cmds.aliasAttr(blendshape_node, q=True)
+    if not aliases:
+        return {}
+
+    # aliasAttr 返回 [别名, 属性, 别名, 属性...] 的列表
+    alias_dict = {}
+    for i in range(0, len(aliases), 2):
+        alias_name = aliases[i]
+        attribute_name = "{}.{}".format(blendshape_node, aliases[i + 1])  # 添加完整路径
+        alias_dict[alias_name] = attribute_name
+    return alias_dict
+
+
+def migrate_blendshape_connections_by_name( source_bs, target_bs ):
+    """
+    将源 BlendShape 节点的 weight 属性连接迁移到目标 BlendShape 节点，
+    根据权重别名（属性名称）匹配连接，而非仅依赖索引。
+
+    :param source_bs: 源 BlendShape 节点名称
+    :param target_bs: 目标 BlendShape 节点名称
+    """
+    # 获取源和目标 BlendShape 的权重别名字典
+    source_aliases_dict = get_blendshape_aliases_dict(source_bs)
+    target_aliases_dict = get_blendshape_aliases_dict(target_bs)
+
+    if not source_aliases_dict:
+        print("源 BlendShape 节点 {} 没有权重别名！".format(source_bs))
+        return
+
+    if not target_aliases_dict:
+        print("目标 BlendShape 节点 {} 没有权重别名！".format(target_bs))
+        return
+
+    # 遍历源 BlendShape 的别名
+    for alias_name, source_attr in source_aliases_dict.items():
+        if alias_name not in target_aliases_dict:
+            print(u"跳过迁移：权重名称 {} 在目标 BlendShape 节点中不存在".format(alias_name))
+            continue
+
+        # 获取目标属性路径
+        target_attr = target_aliases_dict[alias_name]
+
+        # 检查源属性是否有连接
+        source_attr_node = pm.PyNode(source_attr)
+        target_attr_node = pm.PyNode(target_attr)
+
+        if source_attr_node.isConnected():
+            # 获取连接信息
+            connections = source_attr_node.listConnections(s=True, d=False, p=True)
+            for conn in connections:
+                # 断开旧连接并重新连接到目标
+                pm.disconnectAttr(conn, source_attr_node)
+                pm.connectAttr(conn, target_attr_node)
+
+                # 输出迁移信息
+                print(u"迁移连接：{} -> {}".format(source_attr, target_attr))
+
+    print(u"完成从 {} 到 {} 的连接迁移！".format(source_bs, target_bs))
+
+
+# 使用示例
+migrate_blendshape_connections_by_name("clothes1_bs", "blendShape19")

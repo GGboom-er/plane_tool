@@ -39,7 +39,7 @@ def add_mesh_sequence_cache_to_selected( cache_path ):
 
         # 添加Mesh Sequence Cache Modifier
         modifier = obj.modifiers.new(name="MeshSequenceCache", type='MESH_SEQUENCE_CACHE')
-
+        modifier.read_data = {'VERT'}
         # 设置Cache File
         modifier.cache_file = cache_file
 
@@ -51,7 +51,7 @@ def add_mesh_sequence_cache_to_selected( cache_path ):
         shape_name = obj.data.name.replace('.', '_')
 
         # 设置Object Path，格式为 /group10/当前物体名/当前物体shape名
-        object_path = get_object_hierarchy_path(obj).replace('Group/cache/','/Group/Geometry/cache/')
+        object_path = get_object_hierarchy_path(obj).replace('Group/cache/','/cache/')+'/'+obj.data.name
 
         modifier.object_path = object_path
 
@@ -59,6 +59,7 @@ def add_mesh_sequence_cache_to_selected( cache_path ):
             f"为模型 {obj.name} 添加了Mesh Sequence Cache变形器，并设置了缓存路径为 {cache_path} 和对象路径为 {object_path}")
 
 
+
 # 使用函数
-cache_path = r"C:\Users\yuweiming\Documents\WXWork\1688853827944262\Cache\File\2024-09\Geometry.usd"  # 缓存文件路径
+cache_path = r"abc"  # 缓存文件路径
 add_mesh_sequence_cache_to_selected(cache_path)
