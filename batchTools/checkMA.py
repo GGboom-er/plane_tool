@@ -2,7 +2,7 @@
 import os
 import re
 '''
-"C:\Program Files\Autodesk\Maya2018\bin\mayapy.exe" Y:\GGbommer\scripts\plane_tool\batchTools\batch_RN.py
+"C:\Program Files\Autodesk\Maya2018\bin\mayapy.exe" Y:\GGbommer\scripts\plane_tool\batchTools\checkMA.py
 '''
 # 指定要处理的 Maya 根目录路径
 root_folder = r'X:\Project\tbx\pub\asset_lib\chr\ctboy\rig\task_master'  # 请修改为您的实际路径
