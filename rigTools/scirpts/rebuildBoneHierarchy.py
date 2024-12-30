@@ -8,18 +8,7 @@
 @file: rebuildBoneHierarchy.py
 @date: 2024/12/14 18:28
 @desc:
-"""
-#!/usr/bin/env python
-# _*_ coding: cp936 _*_
-
-"""
 骨骼层级导出和恢复工具，支持 Python 2 和 Python 3，包含旋转和 jointOrient 属性
-"""
-# !/usr/bin/env python
-# _*_ coding: cp936 _*_
-
-"""
-骨骼层级导出和恢复工具，支持 Python 2 和 Python 3，包含旋转和 jointOrient 属性，并新增 DNA 节点功能
 """
 import maya.cmds as cmds
 import json

@@ -16,8 +16,6 @@ import sys
 
 # 检查 Python 版本
 PY2 = sys.version_info[0] == 2
-
-
 def get_blendshape_aliases_dict( blendshape_node ):
     """
     获取 BlendShape 节点的权重别名与属性名称的对应字典。
@@ -39,8 +37,6 @@ def get_blendshape_aliases_dict( blendshape_node ):
         attribute_name = "{}.{}".format(blendshape_node, aliases[i + 1])  # 添加完整路径
         alias_dict[alias_name] = attribute_name
     return alias_dict
-
-
 def migrate_blendshape_connections_by_name( source_bs, target_bs ):
     """
     将源 BlendShape 节点的 weight 属性连接迁移到目标 BlendShape 节点，
@@ -86,7 +82,5 @@ def migrate_blendshape_connections_by_name( source_bs, target_bs ):
                 print(u"迁移连接：{} -> {}".format(source_attr, target_attr))
 
     print(u"完成从 {} 到 {} 的连接迁移！".format(source_bs, target_bs))
-
-
 # 使用示例
 migrate_blendshape_connections_by_name("clothes1_bs", "blendShape19")
