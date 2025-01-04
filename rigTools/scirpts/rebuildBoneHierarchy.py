@@ -10,10 +10,11 @@
 @desc:
 骨骼层级导出和恢复工具，支持 Python 2 和 Python 3，包含旋转和 jointOrient 属性
 """
-import maya.cmds as cmds
-import json
+from __future__ import absolute_import, division, print_function, unicode_literals
 import os
+import json
 import tempfile
+import maya.cmds as cmds
 
 try:
     import maya.api.OpenMaya as om
@@ -21,16 +22,17 @@ except ImportError:
     import maya.OpenMaya as om
 
 
-def get_all_bone_hierarchy_with_attributes( root_joint ):
-    def traverse_hierarchy( joint, parent_path ):
+def get_all_bone_hierarchy_with_attributes(root_joint):
+    """递归获取骨骼层级及其属性"""
+    def traverse_hierarchy(joint, parent_path):
         bone_name = joint.split(":")[-1]
         current_path = "{}/{}".format(parent_path, bone_name)
         rotation = cmds.getAttr("{}.rotate".format(joint))[0]
         joint_orient = cmds.getAttr("{}.jointOrient".format(joint))[0]
         hierarchy_data.append({
-            "path"       : current_path,
-            "name"       : bone_name,
-            "rotation"   : rotation,
+            "path": current_path,
+            "name": bone_name,
+            "rotation": rotation,
             "jointOrient": joint_orient
         })
         children = cmds.listRelatives(joint, children=True, type="joint") or []
@@ -43,9 +45,10 @@ def get_all_bone_hierarchy_with_attributes( root_joint ):
 
 
 def export_bone_hierarchy_to_json():
+    """导出骨骼层级和属性到 JSON 文件"""
     selected = cmds.ls(selection=True, type="joint")
     if not selected:
-        om.MGlobal.displayError(u"请选择一个根骨骼")
+        om.MGlobal.displayError("请选择一个根骨骼")
         return
 
     root_joint = selected[0]
@@ -56,27 +59,29 @@ def export_bone_hierarchy_to_json():
     try:
         with open(json_path, "w") as json_file:
             json.dump(hierarchy, json_file, indent=4)
-    except Exception as e:
-        om.MGlobal.displayError(u"写入 JSON 文件失败: {}".format(e))
+    except (IOError, OSError) as e:
+        om.MGlobal.displayError("写入 JSON 文件失败: {}".format(e))
         return
 
-    om.MGlobal.displayInfo(u"骨骼层级路径及属性已导出到: {}".format(json_path))
+    om.MGlobal.displayInfo("骨骼层级路径及属性已导出到: {}".format(json_path))
 
 
-def parse_json_hierarchy( json_path ):
+def parse_json_hierarchy(json_path):
+    """从 JSON 文件解析骨骼层级关系和属性"""
     if not os.path.exists(json_path):
-        cmds.error(u"JSON 文件不存在: {}".format(json_path))
+        cmds.error("JSON 文件不存在: {}".format(json_path))
         return None
 
     try:
         with open(json_path, "r") as json_file:
             hierarchy = json.load(json_file)
-    except Exception as e:
-        cmds.error(u"加载 JSON 文件失败: {}".format(e))
+    except (IOError, OSError, ValueError) as e:
+        cmds.error("加载 JSON 文件失败: {}".format(e))
         return None
 
     bone_relationships = {}
     bone_attributes = {}
+    child_order = {}
     for item in hierarchy:
         path = item["path"]
         name = item["name"]
@@ -84,21 +89,26 @@ def parse_json_hierarchy( json_path ):
         parent_name = parent_path.split("/")[-1] if parent_path else None
         bone_relationships[name] = parent_name
         bone_attributes[name] = {
-            "rotation"   : item["rotation"],
+            "rotation": item["rotation"],
             "jointOrient": item["jointOrient"]
         }
-    return bone_relationships, bone_attributes
+        if parent_name not in child_order:
+            child_order[parent_name] = []
+        child_order[parent_name].append(name)
+    return bone_relationships, bone_attributes, child_order
 
 
-def match_bones_with_namespace( bone_relationships ):
+def match_bones_with_namespace(bone_relationships):
+    """根据命名空间匹配场景中的骨骼"""
     scene_bones = cmds.ls(type="joint")
+    scene_index = {bone.split(":")[-1]: bone for bone in scene_bones}
+
     matched_bones = {}
     missing_bones = []
 
     for bone_name in bone_relationships:
-        matches = [bone for bone in scene_bones if bone.split(":")[-1] == bone_name]
-        if matches:
-            matched_bones[bone_name] = matches[0]
+        if bone_name in scene_index:
+            matched_bones[bone_name] = scene_index[bone_name]
         else:
             missing_bones.append(bone_name)
 
@@ -106,8 +116,9 @@ def match_bones_with_namespace( bone_relationships ):
 
 
 def restore_bone_hierarchy_with_attributes():
+    """恢复骨骼层级和属性"""
     json_path = os.path.join(tempfile.gettempdir(), "___bone_hierarchy.json")
-    bone_relationships, bone_attributes = parse_json_hierarchy(json_path)
+    bone_relationships, bone_attributes, _ = parse_json_hierarchy(json_path)
 
     if not bone_relationships:
         return
@@ -115,46 +126,42 @@ def restore_bone_hierarchy_with_attributes():
     matched_bones, missing_bones = match_bones_with_namespace(bone_relationships)
 
     if not matched_bones:
-        cmds.error(u"没有找到匹配的骨骼，无法恢复层级和属性")
+        cmds.error("没有找到匹配的骨骼，无法恢复层级和属性")
         return
 
     if missing_bones:
         om.MGlobal.displayWarning(
-            u"以下骨骼在场景中不存在: {}".format(", ".join(missing_bones))
+            "以下骨骼在场景中不存在: {}".format(", ".join(missing_bones))
         )
 
+    # 获取用户选中的骨骼
     selected_bones = cmds.ls(selection=True, type="joint")
-    if not selected_bones:
-        cmds.error(u"请选中需要恢复的骨骼")
-        return
-
-    selected_names = {bone.split(":")[-1] for bone in selected_bones}
+    selected_names = {bone.split(":")[-1] for bone in selected_bones} if selected_bones else set()
 
     for bone_name, parent_name in bone_relationships.items():
-        if bone_name in selected_names and bone_name in matched_bones:
-            current_bone = matched_bones[bone_name]
-            if parent_name and parent_name in matched_bones:
-                parent_bone = matched_bones[parent_name]
+        # 仅处理选中的骨骼或其子骨骼
+        if not selected_names or bone_name in selected_names:
+            if bone_name in matched_bones:
+                current_bone = matched_bones[bone_name]
+                if parent_name and parent_name in matched_bones:
+                    parent_bone = matched_bones[parent_name]
+                    try:
+                        cmds.parent(current_bone, parent_bone)
+                    except RuntimeError:
+                        om.MGlobal.displayWarning(
+                            "无法设置骨骼 {} 的父级为 {}".format(current_bone, parent_bone)
+                        )
+
+                rotation = bone_attributes[bone_name]["rotation"]
+                joint_orient = bone_attributes[bone_name]["jointOrient"]
                 try:
-                    cmds.parent(current_bone, parent_bone)
+                    cmds.setAttr("{}.rotate".format(current_bone), *rotation)
+                    cmds.setAttr("{}.jointOrient".format(current_bone), *joint_orient)
                 except RuntimeError:
-                    om.MGlobal.displayWarning(
-                        "无法设置骨骼 {} 的父级为 {}".format(current_bone, parent_bone)
-                    )
+                    om.MGlobal.displayWarning("无法恢复骨骼 {} 的属性".format(current_bone))
 
-            rotation = bone_attributes[bone_name]["rotation"]
-            joint_orient = bone_attributes[bone_name]["jointOrient"]
-            try:
-                cmds.setAttr("{}.rotate".format(current_bone), *rotation)
-                cmds.setAttr("{}.jointOrient".format(current_bone), *joint_orient)
-            except RuntimeError:
-                om.MGlobal.displayWarning(
-                    "无法恢复骨骼 {} 的属性".format(current_bone)
-                )
-
-    om.MGlobal.displayInfo(u"选中骨骼的层级和属性已恢复")
-
-
+    restore_bone_order(selected_names)
+    om.MGlobal.displayInfo("选中骨骼的层级和属性已恢复")
 def delete_dna_node():
     embedded_nodes = cmds.ls(type="embeddedNodeRL4")
     if embedded_nodes:
@@ -192,6 +199,33 @@ def load_dna_node( dna_text ):
         cn="<objName>.<attrName>"
     )
 
+def restore_bone_order(selected_names=None):
+    """恢复骨骼的上下顺序"""
+    json_path = os.path.join(tempfile.gettempdir(), "___bone_hierarchy.json")
+    _, _, child_order = parse_json_hierarchy(json_path)
+
+    if not child_order:
+        om.MGlobal.displayWarning("未能从 JSON 文件中解析骨骼层级顺序")
+        return
+
+    scene_bones = cmds.ls(type="joint")
+    scene_index = {bone.split(":")[-1]: bone for bone in scene_bones}
+
+    for parent_name, children in child_order.items():
+        if parent_name in scene_index:
+            parent_bone = scene_index[parent_name]
+            for index, child_name in enumerate(children):
+                if child_name in scene_index:
+                    target_child = scene_index[child_name]
+                    # 如果启用部分骨骼选中，跳过非选中骨骼
+                    if selected_names and child_name not in selected_names:
+                        continue
+                    try:
+                        cmds.reorder(target_child, b=index + 1)
+                    except RuntimeError:
+                        om.MGlobal.displayWarning("无法调整骨骼 {} 的顺序".format(target_child))
+
+    om.MGlobal.displayInfo("骨骼顺序已恢复")
 
 def create_ui():
     window_name = "BoneHierarchyUI"
@@ -202,7 +236,7 @@ def create_ui():
     layout = cmds.columnLayout(adjustableColumn=True, rowSpacing=10)
     cmds.button(label=u"导出骨骼层级及属性到 JSON", height=40, command=lambda _: export_bone_hierarchy_to_json())
     cmds.button(label=u"删除DNA节点", height=40, command=lambda _: delete_dna_node())
-    cmds.button(label=u"恢复选中骨骼层级及属性", height=40, command=lambda _: restore_bone_hierarchy_with_attributes())
+    cmds.button(label=u"恢复选中骨骼层级", height=40, command=lambda _: restore_bone_hierarchy_with_attributes())
     dna_text_field = cmds.textField(placeholderText="输入DNA节点内容")
     initialize_dna_line_text(dna_text_field)
 
