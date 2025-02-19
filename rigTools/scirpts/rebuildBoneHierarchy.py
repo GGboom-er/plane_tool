@@ -22,19 +22,28 @@ except ImportError:
     import maya.OpenMaya as om
 
 
-def get_all_bone_hierarchy_with_attributes(root_joint):
-    """递归获取骨骼层级及其属性"""
-    def traverse_hierarchy(joint, parent_path):
+def get_all_bone_hierarchy_with_attributes( root_joint, attrValue=True ):
+    """递归获取骨骼层级及其属性
+
+    参数：
+    root_joint (str): 根关节的名称
+    attrValue (bool): 是否获取 `rotate` 和 `jointOrient` 属性
+
+    返回：
+    list: 包含骨骼层级信息的字典列表
+    """
+
+    def traverse_hierarchy( joint, parent_path ):
         bone_name = joint.split(":")[-1]
         current_path = "{}/{}".format(parent_path, bone_name)
-        rotation = cmds.getAttr("{}.rotate".format(joint))[0]
-        joint_orient = cmds.getAttr("{}.jointOrient".format(joint))[0]
-        hierarchy_data.append({
-            "path": current_path,
-            "name": bone_name,
-            "rotation": rotation,
-            "jointOrient": joint_orient
-        })
+        bone_data = {"path": current_path, "name": bone_name}
+
+        if attrValue:
+            bone_data["rotation"] = cmds.getAttr("{}.rotate".format(joint))[0]
+            bone_data["jointOrient"] = cmds.getAttr("{}.jointOrient".format(joint))[0]
+
+        hierarchy_data.append(bone_data)
+
         children = cmds.listRelatives(joint, children=True, type="joint") or []
         for child in children:
             traverse_hierarchy(child, current_path)
@@ -44,7 +53,7 @@ def get_all_bone_hierarchy_with_attributes(root_joint):
     return hierarchy_data
 
 
-def export_bone_hierarchy_to_json():
+def export_bone_hierarchy_to_json(attrValue=True):
     """导出骨骼层级和属性到 JSON 文件"""
     selected = cmds.ls(selection=True, type="joint")
     if not selected:
@@ -52,22 +61,43 @@ def export_bone_hierarchy_to_json():
         return
 
     root_joint = selected[0]
-    hierarchy = get_all_bone_hierarchy_with_attributes(root_joint)
-    temp_dir = tempfile.gettempdir()
-    json_path = os.path.join(temp_dir, "___bone_hierarchy.json")
+    hierarchy = get_all_bone_hierarchy_with_attributes(root_joint,attrValue)
+    if attrValue:
+        temp_dir = tempfile.gettempdir()
+        json_path = os.path.join(temp_dir, "___bone_attrValue.json")
 
-    try:
-        with open(json_path, "w") as json_file:
-            json.dump(hierarchy, json_file, indent=4)
-    except (IOError, OSError) as e:
-        om.MGlobal.displayError("写入 JSON 文件失败: {}".format(e))
-        return
+        try:
+            with open(json_path, "w") as json_file:
+                json.dump(hierarchy, json_file, indent=4)
+        except (IOError, OSError) as e:
+            om.MGlobal.displayError("写入 JSON 文件失败: {}".format(e))
+            return
 
-    om.MGlobal.displayInfo("骨骼层级路径及属性已导出到: {}".format(json_path))
+        om.MGlobal.displayInfo("骨骼层级路径及属性已导出到: {}".format(json_path))
+    else:
+        temp_dir = tempfile.gettempdir()
+        json_path = os.path.join(temp_dir, "___bone_hierarchy.json")
+
+        try:
+            with open(json_path, "w") as json_file:
+                json.dump(hierarchy, json_file, indent=4)
+        except (IOError, OSError) as e:
+            om.MGlobal.displayError("写入 JSON 文件失败: {}".format(e))
+            return
+
+        om.MGlobal.displayInfo("骨骼属性已导出到: {}".format(json_path))
 
 
-def parse_json_hierarchy(json_path):
-    """从 JSON 文件解析骨骼层级关系和属性"""
+def parse_json_hierarchy( json_path, attrValue=True ):
+    """从 JSON 文件解析骨骼层级关系和属性
+
+    参数：
+    json_path (str): JSON 文件路径
+    attrValue (bool): 是否解析 `rotation` 和 `jointOrient` 属性
+
+    返回：
+    tuple: (bone_relationships, bone_attributes, child_order)
+    """
     if not os.path.exists(json_path):
         cmds.error("JSON 文件不存在: {}".format(json_path))
         return None
@@ -88,14 +118,18 @@ def parse_json_hierarchy(json_path):
         parent_path = "/".join(path.split("/")[:-1])
         parent_name = parent_path.split("/")[-1] if parent_path else None
         bone_relationships[name] = parent_name
-        bone_attributes[name] = {
-            "rotation": item["rotation"],
-            "jointOrient": item["jointOrient"]
-        }
+
+        if attrValue:
+            bone_attributes[name] = {
+                "rotation"   : item.get("rotation"),
+                "jointOrient": item.get("jointOrient")
+            }
+
         if parent_name not in child_order:
             child_order[parent_name] = []
         child_order[parent_name].append(name)
-    return bone_relationships, bone_attributes, child_order
+
+    return bone_relationships, bone_attributes if attrValue else None, child_order
 
 
 def match_bones_with_namespace(bone_relationships):
@@ -117,10 +151,9 @@ def match_bones_with_namespace(bone_relationships):
 
 def restore_bone_hierarchy_with_attributes():
     """恢复骨骼层级和属性"""
-    json_path = os.path.join(tempfile.gettempdir(), "___bone_hierarchy.json")
-    bone_relationships, bone_attributes, _ = parse_json_hierarchy(json_path)
-
-    if not bone_relationships:
+    bone_relationships, _, _ = parse_json_hierarchy(os.path.join(tempfile.gettempdir(), "___bone_hierarchy.json"),0)
+    _, bone_attributes, _ = parse_json_hierarchy(os.path.join(tempfile.gettempdir(), "___bone_attrValue.json"), 1)
+    if not bone_relationships and not bone_attributes:
         return
 
     matched_bones, missing_bones = match_bones_with_namespace(bone_relationships)
@@ -134,7 +167,7 @@ def restore_bone_hierarchy_with_attributes():
             "以下骨骼在场景中不存在: {}".format(", ".join(missing_bones))
         )
 
-    # 获取用户选中的骨骼
+    # 获取选中的骨骼
     selected_bones = cmds.ls(selection=True, type="joint")
     selected_names = {bone.split(":")[-1] for bone in selected_bones} if selected_bones else set()
 
@@ -151,7 +184,6 @@ def restore_bone_hierarchy_with_attributes():
                         om.MGlobal.displayWarning(
                             "无法设置骨骼 {} 的父级为 {}".format(current_bone, parent_bone)
                         )
-
                 rotation = bone_attributes[bone_name]["rotation"]
                 joint_orient = bone_attributes[bone_name]["jointOrient"]
                 try:
@@ -161,7 +193,9 @@ def restore_bone_hierarchy_with_attributes():
                     om.MGlobal.displayWarning("无法恢复骨骼 {} 的属性".format(current_bone))
 
     restore_bone_order(selected_names)
+
     om.MGlobal.displayInfo("选中骨骼的层级和属性已恢复")
+
 def delete_dna_node():
     embedded_nodes = cmds.ls(type="embeddedNodeRL4")
     if embedded_nodes:
@@ -234,9 +268,15 @@ def create_ui():
 
     window = cmds.window(window_name, title=u"骨骼层级工具", widthHeight=(400, 350))
     layout = cmds.columnLayout(adjustableColumn=True, rowSpacing=10)
-    cmds.button(label=u"导出骨骼层级及属性到 JSON", height=40, command=lambda _: export_bone_hierarchy_to_json())
+
+    cmds.button(label=u"导出——————骨骼层级 JSON", height=40,
+                command=lambda _: export_bone_hierarchy_to_json(attrValue =0))
+    cmds.button(label=u"导出——————骨骼旋转数值 JSON", height=40,
+                command=lambda _: export_bone_hierarchy_to_json(attrValue =1))
     cmds.button(label=u"删除DNA节点", height=40, command=lambda _: delete_dna_node())
-    cmds.button(label=u"恢复选中骨骼层级", height=40, command=lambda _: restore_bone_hierarchy_with_attributes())
+
+    cmds.button(label=u"恢复选中骨骼层级以及旋转数值", height=40,
+                command=lambda _: restore_bone_hierarchy_with_attributes())
     dna_text_field = cmds.textField(placeholderText="输入DNA节点内容")
     initialize_dna_line_text(dna_text_field)
 
