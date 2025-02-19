@@ -149,7 +149,7 @@ def match_bones_with_namespace(bone_relationships):
     return matched_bones, missing_bones
 
 
-def restore_bone_hierarchy_with_attributes():
+def restore_bone_hierarchy_with_attributes(hierarchyOrattrValue = True ):
     """恢复骨骼层级和属性"""
     bone_relationships, _, _ = parse_json_hierarchy(os.path.join(tempfile.gettempdir(), "___bone_hierarchy.json"),0)
     _, bone_attributes, _ = parse_json_hierarchy(os.path.join(tempfile.gettempdir(), "___bone_attrValue.json"), 1)
@@ -184,17 +184,20 @@ def restore_bone_hierarchy_with_attributes():
                         om.MGlobal.displayWarning(
                             "无法设置骨骼 {} 的父级为 {}".format(current_bone, parent_bone)
                         )
-                rotation = bone_attributes[bone_name]["rotation"]
-                joint_orient = bone_attributes[bone_name]["jointOrient"]
-                try:
-                    cmds.setAttr("{}.rotate".format(current_bone), *rotation)
-                    cmds.setAttr("{}.jointOrient".format(current_bone), *joint_orient)
-                except RuntimeError:
-                    om.MGlobal.displayWarning("无法恢复骨骼 {} 的属性".format(current_bone))
+                if hierarchyOrattrValue:
+                    rotation = bone_attributes[bone_name]["rotation"]
+                    joint_orient = bone_attributes[bone_name]["jointOrient"]
+                    try:
+                        cmds.setAttr("{}.rotate".format(current_bone), *rotation)
+                        cmds.setAttr("{}.jointOrient".format(current_bone), *joint_orient)
+                    except RuntimeError:
+                        om.MGlobal.displayWarning("无法恢复骨骼 {} 的属性".format(current_bone))
 
     restore_bone_order(selected_names)
-
-    om.MGlobal.displayInfo("选中骨骼的层级和属性已恢复")
+    if hierarchyOrattrValue:
+        om.MGlobal.displayInfo("选中骨骼的层级和属性已恢复")
+    else:
+        om.MGlobal.displayInfo("选中骨骼的层级已恢复")
 
 def delete_dna_node():
     embedded_nodes = cmds.ls(type="embeddedNodeRL4")
@@ -275,8 +278,10 @@ def create_ui():
                 command=lambda _: export_bone_hierarchy_to_json(attrValue =1))
     cmds.button(label=u"删除DNA节点", height=40, command=lambda _: delete_dna_node())
 
+    export_checkbox = cmds.checkBox(label=u"导入骨骼数值", value=True)
+
     cmds.button(label=u"恢复选中骨骼层级以及旋转数值", height=40,
-                command=lambda _: restore_bone_hierarchy_with_attributes())
+                command=lambda _: restore_bone_hierarchy_with_attributes(cmds.checkBox(export_checkbox, query=True, value=True)))
     dna_text_field = cmds.textField(placeholderText="输入DNA节点内容")
     initialize_dna_line_text(dna_text_field)
 
