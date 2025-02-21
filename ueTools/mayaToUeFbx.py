@@ -5,7 +5,6 @@ import maya.OpenMaya as om
 import json
 import os
 import sys
-
 if sys.version_info[0] == 2:
     import codecs
 
@@ -51,6 +50,10 @@ def get_material_connections():
     for shape in selection:
         # 获取 SG 节点
         shading_groups = cmds.listConnections(shape, type='shadingEngine') or []
+        try:
+            shading_groups.remove('initialShadingGroup')
+        except:
+            pass
         all_sg_nodes.update(shading_groups)
 
     for sg in all_sg_nodes:
@@ -137,7 +140,7 @@ def export_selected_to_fbx_python( filepath ):
     cmds.FBXExportSmoothingGroups("-v", True)
     cmds.FBXExportTangents("-v", False)
     cmds.FBXExportSmoothMesh("-v", True)
-    cmds.FBXExportTriangulate("-v", True)
+    cmds.FBXExportTriangulate("-v", False)
     cmds.FBXExportReferencedAssetsContent("-v", True)
 
     cmds.FBXExportBakeComplexAnimation("-v", True)

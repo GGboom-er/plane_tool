@@ -12,23 +12,25 @@
 import bpy
 
 
-def rename_mesh_data_to_object_name():
-    # 遍历所有对象
-    for obj in bpy.data.objects:
-        # 只处理网格对象
-        if obj.type == 'MESH':
-            # 获取当前对象的网格数据名称
-            mesh_data_name = obj.data.name
-            # 构建目标名称
-            target_name = f"{obj.name}Shape"
+def rename_shape_node():
+    # 获取当前选中的对象
+    obj = bpy.context.active_object
+    if obj is None:
+        print("错误：当前未选中任何对象。")
+        return
 
-            # 检查并修改网格数据名称
-            if mesh_data_name != target_name:
-                print(f"修改 '{mesh_data_name}' 为 '{target_name}'")
-                obj.data.name = target_name
-            else:
-                print(f"'{mesh_data_name}' 已经是正确的名称")
+    # 确保对象有 data（即 shape 节点）
+    if not hasattr(obj, "data") or obj.data is None:
+        print("错误：选中对象没有 shape 节点。")
+        return
+
+    # 构造新名称，例如 A → AShape
+    new_name = obj.name + "Shape"
+    obj.data.name = new_name
+    print(f"成功：构造节点已重命名为 '{new_name}'")
 
 
 # 运行函数
-rename_mesh_data_to_object_name()
+rename_shape_node()
+
+

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # _*_ coding:cp936 _*_
-
 """
 @author: GGboom
 @license: MIT

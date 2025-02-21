@@ -1,3 +1,6 @@
+import sys
+sys.path.append(r'P:\pipeline\python39_python_lib')
+sys.path.append(r'P:\pipeline\ppas')
 from dayu_widgets.line_edit import MLineEdit
 from dayu_widgets.qt import *
 
@@ -613,9 +616,7 @@ def select_asset_in_content_browser_and_get( asset_path ):
 
 
 def show_in_ue():
-    import sys
-    sys.path.append(r'P:\pipeline\python39_python_lib')
-    sys.path.append(r'P:\pipeline\ppas')
+
     import unreal
 
     if QApplication.instance():
