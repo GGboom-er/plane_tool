@@ -119,13 +119,13 @@ def export_curves_to_maya( operator, context, filepath="", use_selection=True ):
         for sel in selection:
             if sel.type == "CURVE":
                 bake_mw = sel.matrix_world
-                curves_grp = sanitize_name(sel.name)
+                # curves_grp = sanitize_name(sel.name)
                 maya_file.append(f'createNode transform -n "{curves_grp}"; \n')
 
                 for id, spl in enumerate(sel.data.splines):
                     curve_t_name = sanitize_name(f'{sel.name}')
-                    curve_shape_name = sanitize_name(f'{sel.name}_curveShape{id + 1}')
-                    maya_file.append(f'createNode transform -n "{curve_t_name}" -p "{curves_grp}"; \n')
+                    curve_shape_name = sanitize_name(f'{sel.name}Shape{id + 1}')
+                    # maya_file.append(f'createNode transform -n "{curve_t_name}" -p "{curves_grp}"; \n')
                     maya_file.append(f'createNode nurbsCurve -n "{curve_shape_name}" -p "{curve_t_name}"; \n')
                     maya_file.extend(write_curve_shape(spl, bake_mw))
 

@@ -54,7 +54,7 @@ def set_geometry_nodes_socket(target_modifier_name, node_param_name, name_suffix
             print(f"错误：未找到名为 '{target_modifier_name}' 的变形器")
 
 # 使用示例
-target_modifier = "Geometry Nodes_curve_cache"  # 目标变形器
+target_modifier = "Geometry_Nodes_curve_cache"  # 目标变形器
 node_param = "Socket_1"  # 变形器参数
 set_geometry_nodes_socket(target_modifier, node_param)
 
