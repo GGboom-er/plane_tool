@@ -85,5 +85,5 @@ def add_mesh_sequence_cache_to_selected(cache_path):
 
 
 # 使用函数
-cache_path = r"U:\ywm\cache\tmp\cache.usd"  # 缓存文件路径
+cache_path = r"U:\ywm\cache\tmp\ssx_chr_sunshangxiang_rig_master_v003_cache.usd"  # 缓存文件路径
 add_mesh_sequence_cache_to_selected(cache_path)
