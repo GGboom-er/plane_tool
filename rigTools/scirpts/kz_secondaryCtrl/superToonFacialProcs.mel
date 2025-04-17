@@ -1,0 +1,575 @@
+//-----------------------------------------------------------------------------------------------
+/*  
+  author: Joe Harkins    			 				www.creaturetd.com
+  name: animToBlend
+  date: 07/20/05
+
+  description:
+  converts animation into blendShapes
+  for every frame a new shape will be duplicated
+  it will automatically group the new shapes and name them accordingly
+  the result can then be used to create a blendshape with inbetweens
+  
+  arguements: 
+  string $obj = the name of the object you wish to run animToBlend on
+  string $char = a character prefix for naming purposes
+  string $name = what you want the resulting name to be
+  
+  example:
+  animToBlend ("hires_geo_character","cat","browsUpLf");
+  
+*/
+//-----------------------------------------------------------------------------------------------
+// kevin update 
+global proc animToBlend (string $obj, string $char, string $name) {
+
+	float $start  = `playbackOptions -q -min`;
+	float $end  = `playbackOptions -q -max`;
+	float $frame = `currentTime -q`;
+	float $step = 1;
+	string $dupe[];
+	string $parent = `createNode transform -name  ($char + "_" + $name + "_blend")`;	
+
+	progressWindow -t "animToBlend" -progress $start -status ("animToBlend on frame: "+$frame) -min $start -max $end -isInterruptable true;
+	
+	
+	for($i=$start;$i<=$end;$i+=$step)	
+	for($frame=$start;$frame<=$end;$frame+=$step)
+		{
+		currentTime $frame;  
+		if($frame == $end) $dupe = `duplicate -name ($char  + "_" + $name) $obj`; 
+		else $dupe = `duplicate -name ($char + "_" + $name + "_" + $frame) $obj`; 
+		parent $dupe[0] $parent;
+		if(`progressWindow -q -isCancelled`) { progressWindow -endProgress; undoInfo -state on;return;}
+		progressWindow -e -progress $frame -status ("running animToBlend on frame: "+$frame);
+		}
+	progressWindow -endProgress; 
+	print ("successfully created " + $name + " blendShape targets for " + $char + "\n");
+	currentTime $start;  
+	}
+
+//-----------------------------------------------------------------------------------------------
+/*  
+  author: Joe Harkins    			 				www.creaturetd.com
+  name: exportBlends
+  date: 07/20/05
+
+  description:
+  exports each selected object into a user specified directory as an individual .ma file
+  calls the exportCallback which launches the dir browser.  Select the directory you want
+  the objects to be exported to.
+  
+  The name of the file will be the name of the object in Maya.
+  
+  ! WARNING ! it WILL automatically save over scene files with the same name!
+  
+  arguements: 
+  none
+  
+  example:
+  select objects to export
+  type exportBlends in the command line and return
+  select the directory to export to
+  
+*/
+//-----------------------------------------------------------------------------------------------
+
+global proc exportBlends (){
+	fileBrowserDialog -mode 4 -fc "exportCallback" -an "Pick Your Blend Shape Directory";
+	return;
+	}
+
+global proc exportCallback(string $path, string $mode){
+	print ("this is the dir path: " + $path + "\n");
+	string $objs[] = `ls -sl`;
+	for ($obj in $objs){
+		select $obj;
+		file -es -type "mayaAscii" ($path + "/" + $obj);
+		delete $obj;
+		print "successfully exported objects! \n";
+		}
+	}
+
+//-----------------------------------------------------------------------------------------------
+/*  
+  author: Joe Harkins    			 				www.creaturetd.com
+  name: importBlends
+  date: 07/20/05
+
+  description:
+  imports each file from a directory and adds it as a blendShape with inbetweens onto the selected mesh
+  The name of the blendShape will be the name of the node in the imported scene file
+  for best results use in conjunction with exportBlends
+  
+  arguements: 
+  none
+  
+  example:
+  select object to import blendshapes onto
+  type importBlends in the command line and return
+  select the directory to import from
+  
+*/
+//-----------------------------------------------------------------------------------------------
+
+global proc importBlends (){
+	fileBrowserDialog -mode 4 -fc "importCallback" -an "Pick Your Blend Shape Directory";
+	return;
+	}
+	
+global proc importCallback(string $path, string $mode){
+	string $bases[] = `ls -sl`;
+	float $size = `size $bases`;
+	string $base = $bases[0];
+	select -ado;
+	string $before[] = `ls -sl`;
+	print ("this is the dir path: " + $path+ "\n");
+	string $folder[] = `getFileList -folder ($path+ "/")`;
+	string $file;
+	for ($file in $folder){
+		file -import ($path + "/" + $file);
+		select -ado;
+		string $during[] = `ls -sl`;
+		string $after[] = stringArrayRemove($before, $during);
+		string $newTarget[] = `listRelatives -c $after[0]`;
+		int $lst = size($newTarget) -1;
+	
+	//kevin
+		string $bsName=($after[0] + "Shape");
+		if (`objExists $bsName`){
+				delete $bsName;
+		}
+	//kevin
+	
+		select $newTarget;
+		select -add $base;
+		blendShape -ib -foc -name ($after[0] + "Shape");
+		delete $after[0];
+		
+	if($size > 1){		
+			string $control = $bases[1];
+			addAttr -ln $newTarget[$lst] -keyable true -min 0 -max 10 -dv 0 $control;
+			string $sr = `createNode setRange -n ($newTarget[$lst] + "_sr")`;
+			connectAttr ($control + "." + $newTarget[$lst]) ($sr + ".valueX");
+			setAttr ($sr + ".oldMinX") 0;
+			setAttr ($sr + ".oldMaxX") 10;
+			setAttr ($sr + ".minX") 0;
+			setAttr ($sr + ".maxX") 1;
+			connectAttr ($sr + ".outValueX") ($after[0] + "Shape." + $newTarget[$lst]);
+			print (" imported blendShape " + $after[0] + " onto "  + $base + "\n");
+			}
+	}
+	select $base;
+}
+
+
+//-----------------------------------------------------------------------------------------------
+/*  
+  author: Joe Harkins    			 				www.creaturetd.com
+  name: skinClusterToCluster
+  date: 07/20/05
+
+  description:
+  turns a skinCluster into cluster or soft mod deformers
+  
+  User inputs a skinCluster node on the mesh to convert from skinCluster to Clusters
+  First, the procedure iterates through each influence in the skinCluster and selects all the point
+  in the mesh that it has an influence over.  From the selected points, the proc makes a cluster or
+  soft mod and sets the weighted node to be the joint/influence from the skinCluster node.
+  
+  The resut is a cluster or soft mod per influence with the exact same membership and weighting.
+  
+  arguements: 
+  string $skinCluster = the name of a skinCluster in the scene
+  string $base = a mesh to copy the clusters onto
+  string $type = choice between "cluster" and "soft"
+  
+  example:
+  In a new scene create a sphere and a few joints, then smooth bind the sphere to the joints.
+  Run the procedure to turn the skinCluster in individual cluster or soft mod deformers.
+  
+  skinClusterToCluster skinCluster1 baseGeo cluster;
+  
+*/
+//-----------------------------------------------------------------------------------------------
+
+global proc skinClusterToCluster (string $skinCluster, string $base, string $type){
+	string $infs[] = `skinCluster -q -inf $skinCluster`;
+
+	progressWindow -t "skinClusterToCluster" -progress 0 -status ("skinClusterToCluster for: "+$skinCluster) -min 0 -max `size $infs` -isInterruptable true;
+
+	for ($i in $infs){
+
+		if(`progressWindow -q -isCancelled`) { progressWindow -endProgress; undoInfo -state on;return;}
+		progressWindow -e -step 1 -status ("running skinClusterToCluster on : "+$i);
+		//kevin
+		group -em -n ($i + "_control"); xform -os -piv 0 0 0;
+		group -n ($i + "_control_zero") ($i + "_control");
+		delete `pointConstraint -w 1 -o 0 0 0 $i ($i + "_control_zero")`;
+		select -cl;
+		//kevin
+		selectInfluencedPoints $i;
+		
+		string $points[] = `ls -sl -fl`;
+		string $tokens[];
+		string $newPoint;
+		select -cl;
+		
+		for ($p = 0; $p < size($points); $p++){
+				$numTokens = tokenize($points[$p], ".", $tokens);
+				string $actualVert = $tokens[1];
+				$newPoint = ($base + "." + $actualVert);
+				select -add $newPoint;
+				}
+		string $clusters[];	
+		string $newPoints[] = `ls -sl  -fl`;
+		
+		if ($type == "cluster"){
+				$clusters = `cluster -n ($i + "_cluster") $newPoints`;
+				string $cShape[] = `listConnections -s 1 ($clusters[0]+".clusterXforms")`;
+				
+				cluster -e -wn ($i + "_control") ($i + "_control") -bs 1 $cShape[0];
+				delete ($i + "_clusterHandle");
+				setAttr ($i + "_clusterHandleShape.visibility") 0;
+					
+				for ($p = 0; $p < size($points); $p++){
+					$infValue = `skinPercent -t $i -q -v $skinCluster $points[$p]`;
+					if ($infValue > 0.0) percent -v $infValue  ($i + "_cluster") $newPoints[$p];
+					}
+				}
+		select $base;
+		select -add ($i + "_control");
+		hyperRealMeshParent;
+		delete ($i + "_control_zero");
+	}
+	//delete $skinCluster;
+	hide $infs;
+	
+	string $secCtrls[] = `ls "*_control"`;
+	controlCircleCreator $secCtrls 1 0 0 .25;
+
+	progressWindow -endProgress;
+}
+
+//-----------------------------------------------------------------------------------------------
+/*  
+  author: Joe Harkins    			 				www.creaturetd.com
+  name: selectInfluencedPoints
+  date: 07/20/05
+
+  description:
+  selects all of the points associated with an influence that has been weighted > 0.
+  
+  arguements: 
+  string $infName = the name of an influence object from a skinCluster in the scene
+  
+  example:
+  
+  selectInfluencedPoints joint1;
+  
+*/
+//-----------------------------------------------------------------------------------------------
+
+global proc selectInfluencedPoints(string $infName){
+	string $results[] = `listConnections -type skinCluster $infName`;
+	string $skinCluster = $results[0];
+	string $skinClusterSet[] = `listConnections -type objectSet $skinCluster`;
+	string $components[] = `sets -q $skinClusterSet[0]`;
+	$components = `filterExpand -sm 36 -sm 28 -sm 31 -sm 46 $components`;
+	global string $gMainProgressBar;
+	progressBar -edit
+ 		-beginProgress
+ 		-isInterruptable true 
+ 		-status "selecting points..." 
+ 		-maxValue `size $components`
+ 		$gMainProgressBar;
+
+	string $affectedPoints[];
+	for ($c in $components){
+		$infValue = `skinPercent -t $infName -q -v $skinCluster $c`;
+		if ($infValue > 0.0) $affectedPoints[`size $affectedPoints`] = $c;
+		if(`progressBar -query -isCancelled $gMainProgressBar`) break;
+		progressBar -edit -step 1 $gMainProgressBar;
+		}
+	
+	progressBar -edit -endProgress $gMainProgressBar;
+	select -r $affectedPoints;
+}
+
+//-----------------------------------------------------------------------------------------------
+/*  
+  author: Joe Harkins    			 				www.creaturetd.com
+  name: controlCircleCreator
+  date: 07/20/05
+
+  description:
+  creates a nurbs circle controller for each selected object based on a few user input args
+  parents the shape of the circle to each object and sets display override based on naming tokens
+  
+  arguements: 
+  string $sel[] = list of selected objects
+  float $x = the direction it should face in X
+  float $y = the direction it should face in Y
+  float $z = the direction it should face in Z
+  float $r = the radius for the circle
+  
+  example:
+  select the objects in the scene you wish to create controls for
+  run this from the command line:
+  controlCircleCreator `ls -sl` 1 0 0 .25;
+  
+*/
+//-----------------------------------------------------------------------------------------------
+/*
+global proc controlCircleCreator (string $sel[], float $x, float $y, float $z, float $r){
+	string $joint;
+	for ($joint in $sel){
+		float $loc[] = `xform -q -ws -t $joint`;
+		//circle -fp $loc[0] $loc[1] $loc[2] -sw 360 -nr $x $y $z  -r $r -n ($joint + "_control");
+	curve -d 1 -p -0.5 0.5 0.5 -p 0.5 0.5 0.5 -p 0.5 0.5 -0.5 
+	-p -0.5 0.5 -0.5 -p -0.5 0.5 0.5 -p -0.5 -0.5 0.5 -p 0.5 -0.5 
+	0.5 -p 0.5 -0.5 -0.5 -p -0.5 -0.5 -0.5 -p -0.5 -0.5 0.5 -p -0.5 
+	0.5 0.5 -p -0.5 0.5 -0.5 -p -0.5 -0.5 -0.5 -p 0.5 -0.5 -0.5 
+	-p 0.5 0.5 -0.5 -p 0.5 0.5 0.5 -p 0.5 -0.5 0.5 -k 0 -k 1 -k 2 
+	-k 3 -k 4 -k 5 -k 6 -k 7 -k 8 -k 9 -k 10 -k 11 -k 12 -k 13 -k 14 -k 15 -k 16 ;
+	rename ($joint + "_control");
+
+		
+		parent -r -shape ($joint + "_controlShape") $joint;
+		setAttr ($joint + "_controlShape.overrideEnabled") 1;
+		setAttr ($joint + ".overrideEnabled") 1;
+		//setAttr ($joint + ".radius") 0;
+		if(`gmatch $joint "*C_*"`){
+					// if center color override is yellow
+					setAttr ($joint + "_controlShape.overrideColor") 17;
+					setAttr ($joint + ".overrideColor") 17;
+					}
+		else if(`gmatch $joint "*L_*"`){
+					// if left color override is green
+					setAttr ($joint + "_controlShape.overrideColor") 6;
+					setAttr ($joint + ".overrideColor") 6;
+					}
+		else if(`gmatch $joint "*R_*"`){
+					// if right color override is red
+					setAttr ($joint + "_controlShape.overrideColor") 13;
+					setAttr ($joint + ".overrideColor") 13;
+					}
+		else if(`gmatch $joint "*"`){
+					// if cant match, make blue
+					setAttr ($joint + "_controlShape.overrideColor") 6;
+					setAttr ($joint + ".overrideColor") 6;
+					}	
+					
+					delete ($joint + "_control");				
+			}
+			
+}
+*/
+//puts selected objects in reference mode
+//
+global proc makeReference(string $sel[]){
+	
+string $obj;
+
+	for($obj in $sel){
+		setAttr ($obj + ".overrideEnabled") 1;
+		setAttr ($obj + ".overrideDisplayType") 2;
+		}
+}
+
+//-----------------------------------------------------------------------------------------------
+/*  
+  author: Joe Harkins    			 				www.creaturetd.com
+  name: polyAvgVtx
+  date: 07/20/05
+
+  description:
+  creates a polyAverageVertex node for selected points
+  
+  What is a polyAverageVertex node?
+  
+  A smoothing node that smoothes the object without introducing additional vertices (as opposed to smooth).
+  At each step, vertices are moved towards the average of its immediate neighbours.
+
+  the inputs for the polyAverageVertex node are:
+  alpha(a) = a ratio of alpha and beta defines how the smoothing will work on the components, default is .5
+  beta(b) = a ratio of alpha and beta defines how the smoothing will work on the components, default is .7
+  iterations(i) = the number of iterations the smoothing ratio should be applied to the components
+  
+  To setup automatic averaging, this script allows you to select the components to be averaged, a node that
+  will control smoothing, and finally the channels on that node that will directly control the smoothing.
+  
+  max iterations is clamped to the number you specify, 10 - 15 is a good range.
+  
+  from the channel box you can highlight the attributes that will control smoothing
+  These attributes are then averaged and input to the iterations attribute of the polyAverageVertex node.
+  An "on" multiplier controls the amount of smoothing, default is 1
+  
+  smoothness * on = iterations
+  
+  arguements: 
+  string $components[] = list of selected vertices
+  string $name = name of resulting polyAverageVertex node
+  float $max = the max clamp for iterations
+
+  
+  example:
+  select some vertices on a polygonal mesh
+  shift select an object that has attributes you want to control smoothing
+  from the channel box, highlight the attributes that will control smoothing
+  run this from the command line:
+  polyAvgVtx `ls -sl` test_pav 15;
+  
+*/
+//-----------------------------------------------------------------------------------------------
+
+global proc polyAvgVtx (string $components[], string $name, float $max){
+	
+	int $lst = size($components) -1;
+	string $parent = $components[$lst];
+	select -d $parent;
+	$components = `ls -sl`;
+
+	string $paVtx[] = `polyAverageVertex $components`;
+	string $pav = ($name + "_pav");
+	rename $paVtx[0] $pav;
+	addAttr -ln alphaIn -sn ar -dv .5 -k 1 $pav;
+	addAttr -ln betaIn -sn br -dv .7 -k 1 $pav;
+	addAttr -ln "on" -dv 1 -k 1 -at "float" -min 0 -max 5 $pav;
+	addAttr -ln "smoothness" -dv 0 -k 1 -at "float" -min 0 -max $max $pav;
+	connectAttr -f ($pav+".ar") ($pav+".a");
+	connectAttr -f ($pav+".br") ($pav+".b");
+	
+	string $mult = `createNode multDoubleLinear -n ($name + "_pavMult")`;
+	connectAttr ($pav + ".on") ($mult + ".i1");
+	connectAttr ($pav + ".smoothness") ($mult + ".i2");
+	connectAttr ($mult + ".o") ($pav + ".i");
+	
+	string $pma = `createNode plusMinusAverage -name ($name + "_pav_pma")`;
+	string $attrs[] = `channelBox -q -sma mainChannelBox`;
+
+	for ($i = 0; $i < size($attrs); $i++){
+			string $abs = `createNode condition -n ($name + "_" + $attrs[$i] + "_abs")`;
+			string $multabs = `createNode multDoubleLinear -n ($name + "_" + $attrs[$i] + "_multabs")`;
+			connectAttr ($parent + "." + $attrs[$i]) ($abs + ".ft");
+			setAttr ($abs + ".st") 0;
+			setAttr ($abs + ".operation") 3;
+			setAttr ($abs + ".ctr") 1;
+			setAttr ($abs + ".cfr") -1;
+			connectAttr ($abs + ".ocr") ($multabs + ".i1");
+			connectAttr ($parent + "." + $attrs[$i]) ($multabs + ".i2");
+			connectAttr -f ($multabs + ".o") ($pma + ".i1[" + $i + "]");
+			}
+			
+	setAttr ($pma + ".operation") 3;
+	string $clamp = `createNode clamp -name ($name + "_clmp")`;
+	setAttr ($clamp + ".mnr") 0;
+	setAttr ($clamp + ".mxr") $max;
+	connectAttr ($pma + ".output1D") ($clamp + ".ipr");
+	connectAttr ($clamp + ".opr") ($pav + ".smoothness");
+}
+	
+//-----------------------------------------------------------------------------------------------
+/*  
+  author: Joe Harkins    			 				www.creaturetd.com
+  name: stretchy_ik
+  date: 07/20/05
+
+  description
+  creates stretchy IK setup on selected joints
+  
+  arguements: 
+  string $char = character name
+  string $controller = name of control that stretchy attr should be added to
+  string $crv = name of IK curve
+  string $chain[] = all the joints in the spline IK chain
+  
+  example:
+  select a chain of joints with a spline IK handle
+  shift select all the joints in the chain
+  run this from the command line:
+  stretchy_ik char_name first_joint_in_chain ik_curve `ls -sl`;
+  
+*/
+//-----------------------------------------------------------------------------------------------
+
+global proc stretchy_ik (string $char, string $controller, string $crv, string $chain[]){
+	
+    addAttr -k on -at double -min 0 -max 1 -dv 0 -ln stretching $controller;
+    string $rev = `createNode reverse -n ($char + "_reverse")`;
+    connectAttr ($controller + ".stretching") ($rev + ".inputX");
+    string $info = `createNode curveInfo -name ($char + "crv_info")`;
+    connectAttr -f ($crv + ".worldSpace[0]") ($info + ".inputCurve");
+    float  $len = `getAttr ($info + ".arcLength")`;
+
+    string $div = `createNode multiplyDivide -n ($char + "_divide")`;
+    setAttr ($div + ".operation") 2;
+    connectAttr ($info + ".arcLength") ($div + ".input1X");
+    setAttr ($div + ".input2X") $len;
+    setAttr ($div + ".input1Y") 1;
+    setAttr ($div + ".input2Y") 1;    
+
+    string $bta = `createNode blendTwoAttr -n ($char + "_bta")`;
+    connectAttr ($rev + ".outputX") ($bta + ".attributesBlender");
+    connectAttr ($div + ".outputX") ($bta + ".input[0]");
+    connectAttr ($div + ".outputY") ($bta + ".input[1]");    
+    
+		for ($c = 0; $c < size($chain); $c++){
+	      {
+   			addAttr -k on -at double -dv 1 -ln ($chain[$c] + "Squash") $controller;
+   			connectAttr  ($controller + "." + $chain[$c] + "Squash") ($chain[$c] + ".scaleZ");
+	      float $tx = `getAttr ($chain[$c] + ".scaleX")`;
+	      string $mlt = `createNode multiplyDivide -n ($chain[$c] + "_mult")`;    
+	      setAttr ($mlt + ".input1X") $tx;
+	      connectAttr ($bta + ".output") ($mlt + ".input2X");
+	      connectAttr ($mlt + ".outputX") ($chain[$c] + ".scaleX");
+	      }
+		}
+}
+//-----------------------------------------------------------------------------------------------
+/*  
+  author: Joe Harkins    			 				www.creaturetd.com
+  name: volumeWire
+  date: 07/20/05
+
+  description
+  creates stretchy wire deformer setup
+  
+  arguements: 
+  string $base = base geometry
+  string $crv = name of curve (must be 4 cv's)
+  string $name = name the resulting deformer
+  
+  example:
+ 	create a nurbs curve to act as a wire base
+  run this from the command line:
+  volumeWire base crv ik_curve name;
+  
+*/
+//-----------------------------------------------------------------------------------------------
+
+global proc volumeWire (string $base, string $crv, string $name){
+
+		wire -dds 0 50 -w $crv -name ($name + "_wire") $base;
+		
+		select ($crv + ".cv[*]");
+		string $cvs[] = `ls -sl -fl`;
+		for ($c in $cvs){
+			float $xfs[] = `xform -q -ws -t $c`;
+			select -cl;
+			string $joint = `joint -position $xfs[0] $xfs[1] $xfs[2] -name ($name + "_j")`;
+			string $clusters[] = `cluster -n ($name + "_cluster") $c`;
+			string $cShape[] = `listConnections -s 1 ($clusters[0]+".clusterXforms")`;
+			cluster -e -wn $joint $joint -bs 1 $cShape[0];
+			select ($name + "_cluster*Handle");
+			string $guesscs[] = `ls -sl`;
+			for ($g in $guesscs){
+					delete;
+					setAttr ($g + "Shape.visibility") 0;
+					}
+			select $joint;
+			controlCircleCreator `ls -sl` 0 1 0 3;
+			}
+		}
+		
+//-----------------------------------------------------------------------------------------------
