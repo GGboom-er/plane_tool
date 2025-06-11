@@ -9,7 +9,7 @@
 @date: 2025/6/11 14:49
 @desc: 
 """
-# -*- coding: utf-8 -*-
+
 import pymel.core as pm
 import hashlib
 
@@ -33,7 +33,11 @@ class BlendShapeFileDriverTool:
                 with pm.rowLayout(nc=2, adjustableColumn=2):
                     with pm.columnLayout(adj=True, width=200):  # 左侧宽度固定
                         pm.text(label='当前值为 1 的属性')
-                        self.active_list = pm.textScrollList(allowMultiSelection=True, height=200)
+                        self.active_list = pm.textScrollList(
+                            allowMultiSelection=True,
+                            height=200,
+                            dcc=self.filter_created_list_by_attr  # 添加双击事件
+                        )
 
                     with pm.columnLayout(adj=True):
                         pm.text(label='已创建的驱动')
@@ -79,13 +83,32 @@ class BlendShapeFileDriverTool:
 
     def refresh_created_list(self, *args):
         self.created_list.removeAll()
+        self.all_driver_items = []  # 存储所有驱动信息，便于筛选使用
         files = pm.ls("bsDriverFile_*", type="file")
         for f in files:
             if f.hasAttr("bsDriver_info"):
                 info = f.attr("bsDriver_info").get()
                 if ":" in info:
                     _, attrs = info.split(":", 1)
-                    self.created_list.append(f"{attrs} -> {f.name()}")
+                    item = f"{attrs} -> {f.name()}"
+                    self.all_driver_items.append(item)
+                    self.created_list.append(item)
+
+    def filter_created_list_by_attr(self, *args):
+        selected_attr = self.active_list.getSelectItem()
+        if not selected_attr:
+            return
+        # 支持多选筛选，显示包含任一属性的驱动
+        match_items = []
+        for item in self.all_driver_items:
+            attr_str = item.split('->')[0].strip()
+            attrs = [a.strip() for a in attr_str.split(',')]
+            if any(attr in attrs for attr in selected_attr):
+                match_items.append(item)
+
+        self.created_list.removeAll()
+        for item in match_items:
+            self.created_list.append(item)
 
     def create_driver(self, *args):
         if not self.bs_node:
@@ -171,3 +194,4 @@ class BlendShapeFileDriverTool:
 
 # 使用方式
 BlendShapeFileDriverTool()
+
