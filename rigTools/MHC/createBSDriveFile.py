@@ -9,7 +9,7 @@
 @date: 2025/6/11 14:49
 @desc: 
 """
-
+# -*- coding: utf-8 -*-
 import pymel.core as pm
 import hashlib
 
@@ -98,7 +98,6 @@ class BlendShapeFileDriverTool:
         selected_attr = self.active_list.getSelectItem()
         if not selected_attr:
             return
-        # 支持多选筛选，显示包含任一属性的驱动
         match_items = []
         for item in self.all_driver_items:
             attr_str = item.split('->')[0].strip()
@@ -122,7 +121,6 @@ class BlendShapeFileDriverTool:
 
         new_attr_set = set(selected_attrs)
 
-        # 检查是否重复
         existing_files = pm.ls("bsDriverFile_*", type="file")
         for f in existing_files:
             if f.hasAttr("bsDriver_info"):
@@ -132,7 +130,6 @@ class BlendShapeFileDriverTool:
                 _, existing_attrs_str = info.split(":", 1)
                 existing_attr_list = existing_attrs_str.split(',')
                 existing_attr_set = set(existing_attr_list)
-
                 if new_attr_set == existing_attr_set:
                     pm.warning("已经存在完全相同属性组合的驱动，无法重复创建。")
                     return
@@ -145,15 +142,21 @@ class BlendShapeFileDriverTool:
         file_node.addAttr("bsDriver_info", dt="string")
         file_node.attr("bsDriver_info").set(f"{self.bs_node}:{attr_key}")
 
+        # 添加 animCurveUU 节点
+        anim_node = pm.createNode("animCurveUU", name=f"bsDriverAnim_{hash_id}")
+        pm.setKeyframe(anim_node, f=0, v=0)
+        pm.setKeyframe(anim_node, f=1, v=1)
+
         if len(attr_paths) == 1:
-            pm.connectAttr(attr_paths[0], file_node.alphaGain, force=True)
+            pm.connectAttr(attr_paths[0], anim_node.input, force=True)
         else:
             mult_node = pm.createNode("multiply", name=f"bsDriverMult_{hash_id}")
-            for i in range(len(attr_paths)):
+            for i, attr in enumerate(attr_paths):
                 pm.setAttr(f"{mult_node}.input[{i}]", 1.0)
-                pm.connectAttr(attr_paths[i], f"{mult_node}.input[{i}]", force=True)
-            pm.connectAttr(mult_node.output, file_node.alphaGain, force=True)
+                pm.connectAttr(attr, f"{mult_node}.input[{i}]", force=True)
+            pm.connectAttr(mult_node.output, anim_node.input, force=True)
 
+        pm.connectAttr(anim_node.output, file_node.alphaGain, force=True)
         self.refresh_created_list()
 
     def delete_driver(self, *args):
@@ -174,8 +177,11 @@ class BlendShapeFileDriverTool:
                 src_attr = conns[0]
                 src_node = src_attr.split('.')[0]
                 pm.disconnectAttr(src_attr, f"{file_name}.alphaGain")
-                if pm.objExists(src_node) and (src_node.startswith("bsDriverMult_") or pm.nodeType(src_node) == "multiply"):
-                    pm.delete(src_node)
+                if pm.objExists(src_node):
+                    if src_node.startswith("bsDriverMult_") or pm.nodeType(src_node) == "multiply":
+                        pm.delete(src_node)
+                    elif src_node.startswith("bsDriverAnim_") or pm.nodeType(src_node) == "animCurveUU":
+                        pm.delete(src_node)
 
             pm.delete(file_name)
 
