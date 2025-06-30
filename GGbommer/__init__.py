@@ -1,11 +1,3 @@
 #!/usr/bin/env python
-# _*_ coding:cp936 _*_
-
-"""
-@author: GGboom
-@license: MIT
-@contact: https://github.com/GGboom-er
-@file: __init__.py.py
-@date: 2024/12/18 11:57
-@desc: 
-"""
+# -*- coding: utf-8 -*-
+"""Utilities for the GGbommer package."""
