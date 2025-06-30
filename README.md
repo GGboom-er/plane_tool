@@ -71,7 +71,7 @@
 - `convert_image.py`: 图像转换。
 
 ### `rigTools` (绑定工具)
-- `MHC/`: 可能与角色绑定、DNA绑定相关。
+- `MHC/`: 角色绑定、DNA绑定相关。
 - `qc/skinning-tools/`: 蒙皮工具。
 - `scirpts/`: 各种绑定脚本，例如：
     - `animToSDK.py`: 动画到SDK。
