@@ -9,3 +9,7 @@
 /modTools/ModificationTool/ModificationUi.py
 /modTools/ModificationTool/normals.tif
 /modTools/ModificationTool/trasnSGInfo.py
+
+# Ignore Python byte-code
+*.pyc
+__pycache__/
