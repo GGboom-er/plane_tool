@@ -109,4 +109,20 @@
 - `mayaToUeFbx.py`: Maya到UE的FBX导出。
 - `utils.py`: 通用工具函数。
 
+### `GGbommer/winUI.py` 端口映射说明
+此界面需要通过 Socket 向 Maya 或 Blender 发送命令。由于官方并未为
+Maya 2025 或 Blender 4.3 提供默认的远程执行端口，启动软件时需显式
+打开 `commandPort` 并记录端口号。建议在启动脚本中将端口和对应进程
+PID 写入根目录下的 `dcc_port_map.json`，格式示例：
+
+```json
+{
+    "1234": 7002,
+    "2345": 7003
+}
+```
+
+界面启动后会读取该文件以确定每个进程的端口号。若未找到端口映射，则
+按钮会提示"Port is unknown"并不会尝试发送命令。
+
 
