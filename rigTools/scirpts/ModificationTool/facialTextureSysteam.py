@@ -12,7 +12,7 @@
 import maya.cmds as cmds
 import os
 import shutil
-def addDirveAttr():
+def addDriveAttr():
     soft_limits = [0.01, 3.0]
     ctrlAttrDict = {'EyeBrowInner':['Squeeze_Facial_Drive_Value','squeeze_Value','BrowMin_Facial_Driva_Value','BrowMax_Facial_Driva_Value'],
                     'EyeBrowRegion':['BrowMax_Facial_Driva_Value'],
@@ -25,7 +25,7 @@ def addDirveAttr():
             if cmds.objExists(controller):
                 for attr, enum_values in attributes.items():
                     full_attr = '{}.{}'.format(controller, attr)
-                    # Èç¹ûÊôĞÔ²»´æÔÚ£¬´´½¨ enum ÀàĞÍµÄÊôĞÔ
+                    # å¦‚æœå±æ€§ä¸å­˜åœ¨ï¼Œåˆ›å»º enum ç±»å‹çš„å±æ€§
                     if not cmds.attributeQuery(attr, node=controller, exists=True):
                         if attr == 'Side_NoseRegion_Shadow':
                             value = 2
@@ -34,43 +34,43 @@ def addDirveAttr():
                         cmds.addAttr(controller, longName=attr, attributeType='enum', enumName=':'.join(enum_values),
                                      keyable=False,dv =value)
 
-                    # ÉèÖÃÊôĞÔÎª¿É¼ûµ«²»¿É¼üÖ¡
+                    # è®¾ç½®å±æ€§ä¸ºå¯è§ä½†ä¸å¯é”®å¸§
                     cmds.setAttr(full_attr, keyable=False, channelBox=True)
         else:
             for i in ['_L','_R']:
                 controllerSide = controller+i
 
                 if not cmds.objExists(controllerSide):
-                    print("¿ØÖÆÆ÷ {} ²»´æÔÚ".format(controllerSide))
+                    print("æ§åˆ¶å™¨ {} ä¸å­˜åœ¨".format(controllerSide))
                     return
                 soft_min, soft_max = soft_limits
-                # ÉèÖÃÃ¿¸öÊôĞÔµÄ¿É¼ûĞÔºÍÈíÏŞÖÆ
+                # è®¾ç½®æ¯ä¸ªå±æ€§çš„å¯è§æ€§å’Œè½¯é™åˆ¶
                 for attr in attributes:
                     full_attr = '{}.{}'.format(controllerSide, attr)
-                    # Èç¹ûÊôĞÔ²»´æÔÚ£¬´´½¨Ëü
+                    # å¦‚æœå±æ€§ä¸å­˜åœ¨ï¼Œåˆ›å»ºå®ƒ
                     if not cmds.attributeQuery(attr, node=controllerSide, exists=True):
                         cmds.addAttr(controllerSide, longName=attr, attributeType='double', softMinValue=soft_min,
                                      softMaxValue=soft_max, keyable=False,dv =1)
-                    # ÉèÖÃÊôĞÔÎª¿É¼ûµ«²»¿É¼üÖ¡
+                    # è®¾ç½®å±æ€§ä¸ºå¯è§ä½†ä¸å¯é”®å¸§
                     cmds.setAttr(full_attr, keyable=False, channelBox=True)
-                    # ¸üĞÂÈíÏŞÖÆ
+                    # æ›´æ–°è½¯é™åˆ¶
                     cmds.addAttr(full_attr, edit=True, softMinValue=soft_min, softMaxValue=soft_max)
 
 def create_and_connect_file_node( texture_path, nodeName ):
-    # ´´½¨ file ½Úµã
+    # åˆ›å»º file èŠ‚ç‚¹
     if not cmds.objExists(nodeName):
         nodeName = cmds.shadingNode('file', n=nodeName, asShader=True, isColorManaged=True)
     else:
-        nodeName = nodeName  # Ê¹ÓÃÏÖÓĞµÄ½ÚµãÃû
+        nodeName = nodeName  # ä½¿ç”¨ç°æœ‰çš„èŠ‚ç‚¹å
 
     cmds.setAttr(nodeName + '.fileTextureName', texture_path, type='string')
 
-    # ´´½¨ place2dTexture ½Úµã
+    # åˆ›å»º place2dTexture èŠ‚ç‚¹
     place2d_texture_node = 'place2dTexture_' + nodeName
     if not cmds.objExists(place2d_texture_node):
         place2d_texture_node = cmds.shadingNode('place2dTexture', n=place2d_texture_node, asUtility=True)
 
-    # Á¬½Ó place2dTexture ºÍ file ½ÚµãµÄÊôĞÔ
+    # è¿æ¥ place2dTexture å’Œ file èŠ‚ç‚¹çš„å±æ€§
     connections = {
         '.coverage'       : '.coverage',
         '.translateFrame' : '.translateFrame',
@@ -217,26 +217,26 @@ def BrowLnnerDirveFn(ctrlName = '',textureNode = ''):
     cmds.connectAttr(BrowLnnerValueCDI + '.outColorR', textureNode + '.colorGainR', f=1)
 
 def copy_and_rename_file(src_path, dst_path_with_name):
-    # ÌáÈ¡Ä¿±êÄ¿Â¼ºÍÄ¿±êÎÄ¼şÃû
+    # æå–ç›®æ ‡ç›®å½•å’Œç›®æ ‡æ–‡ä»¶å
 
     dst_dir = os.path.dirname(dst_path_with_name)
     dst_file_name = os.path.basename(dst_path_with_name)
 
-    # È·±£Ä¿±êÄ¿Â¼´æÔÚ£¬²»´æÔÚÔò´´½¨
+    # ç¡®ä¿ç›®æ ‡ç›®å½•å­˜åœ¨ï¼Œä¸å­˜åœ¨åˆ™åˆ›å»º
     if not os.path.exists(dst_dir):
         os.makedirs(dst_dir)
 
-    # Ä¿±êÎÄ¼şÂ·¾¶
+    # ç›®æ ‡æ–‡ä»¶è·¯å¾„
     dst_file_path = os.path.join(dst_dir, dst_file_name)
 
-    # Èç¹ûÄ¿±êÎÄ¼ş´æÔÚ£¬Ôò¸²¸Ç
+    # å¦‚æœç›®æ ‡æ–‡ä»¶å­˜åœ¨ï¼Œåˆ™è¦†ç›–
     if os.path.exists(dst_file_path):
         os.remove(dst_file_path)
 
-    # ¸´ÖÆÎÄ¼şµ½Ä¿±êÂ·¾¶
+    # å¤åˆ¶æ–‡ä»¶åˆ°ç›®æ ‡è·¯å¾„
     shutil.copy2(src_path, dst_file_path)
 
-    # ´ò¿ªÄ¿±êÎÄ¼ş¼Ğ
+    # æ‰“å¼€ç›®æ ‡æ–‡ä»¶å¤¹
     os.startfile(dst_dir)
 
 def check_layered_texture_usage(layered_textures):
@@ -263,11 +263,11 @@ def clean_layered_textures(layered_textures):
     remove_unused_layered_textures(layered_textures)
 
 def insert_files_to_layered_texture(layered_texture, file_nodes):
-    # »ñÈ¡µ±Ç°Layer Texture½ÚµãÖĞµÄËùÓĞ²ã
+    # è·å–å½“å‰Layer TextureèŠ‚ç‚¹ä¸­çš„æ‰€æœ‰å±‚
     layers = cmds.getAttr(layered_texture + '.inputs', multiIndices=True) or []
     layer_data = {}
 
-    # ´æ´¢µ±Ç°Á¬½ÓĞÅÏ¢
+    # å­˜å‚¨å½“å‰è¿æ¥ä¿¡æ¯
     for layer in layers:
         color_attr = '{}.inputs[{}].color'.format(layered_texture, layer)
         alpha_attr = '{}.inputs[{}].alpha'.format(layered_texture, layer)
@@ -276,109 +276,109 @@ def insert_files_to_layered_texture(layered_texture, file_nodes):
         if color_conn:
             layer_data[color_conn[0].split('.')[0]] = (color_conn[0], alpha_conn[0] if alpha_conn else None)
 
-    # ¶Ï¿ªËùÓĞÏÖÓĞÁ¬½Ó²¢ÒÆ³ıÊôĞÔ²Û
+    # æ–­å¼€æ‰€æœ‰ç°æœ‰è¿æ¥å¹¶ç§»é™¤å±æ€§æ§½
     for layer in layers:
         cmds.removeMultiInstance('{}.inputs[{}]'.format(layered_texture, layer), b=True)
 
-    # ½«ĞÂµÄ½Úµã²åÈëµ½×îĞ¡µÄ²å²Û£¬²¢ÖØĞÂÁ¬½ÓËùÓĞ½Úµã
+    # å°†æ–°çš„èŠ‚ç‚¹æ’å…¥åˆ°æœ€å°çš„æ’æ§½ï¼Œå¹¶é‡æ–°è¿æ¥æ‰€æœ‰èŠ‚ç‚¹
     new_layers = file_nodes + [node for node in layer_data if node not in file_nodes]
-    connected_nodes = set()  # ÓÃÓÚ¸ú×ÙÒÑ¾­Á¬½ÓµÄÎÄ¼ş½Úµã
+    connected_nodes = set()  # ç”¨äºè·Ÿè¸ªå·²ç»è¿æ¥çš„æ–‡ä»¶èŠ‚ç‚¹
 
     for i, file_node in enumerate(new_layers):
         color_attr = '{}.inputs[{}].color'.format(layered_texture, i)
         alpha_attr = '{}.inputs[{}].alpha'.format(layered_texture, i)
 
         if file_node not in connected_nodes:
-            # Èç¹û½ÚµãÖ®Ç°ÒÑ¾­Á¬½Ó£¬°´ÕÕÖ®Ç°µÄÁ¬½ÓÊôĞÔ½øĞĞÖØĞÂÁ¬½Ó
+            # å¦‚æœèŠ‚ç‚¹ä¹‹å‰å·²ç»è¿æ¥ï¼ŒæŒ‰ç…§ä¹‹å‰çš„è¿æ¥å±æ€§è¿›è¡Œé‡æ–°è¿æ¥
             if file_node in layer_data:
                 cmds.connectAttr(layer_data[file_node][0], color_attr, force=True)
                 if layer_data[file_node][1]:
                     cmds.connectAttr(layer_data[file_node][1], alpha_attr, force=True)
             else:
-                # ¶ÔÓÚĞÂµÄÎÄ¼ş½Úµã£¬Á¬½ÓcolorºÍcolorRÊôĞÔµ½alpha
+                # å¯¹äºæ–°çš„æ–‡ä»¶èŠ‚ç‚¹ï¼Œè¿æ¥colorå’ŒcolorRå±æ€§åˆ°alpha
                 cmds.connectAttr(file_node + '.outColor', color_attr, force=True)
                 cmds.connectAttr(file_node + '.outColorR', alpha_attr, force=True)
 
             connected_nodes.add(file_node)
 
-#´´½¨ÍêÇı¶¯ºóĞèÒªÊä³ö¸øcache£¬´«µİ¸ølgt
+#åˆ›å»ºå®Œé©±åŠ¨åéœ€è¦è¾“å‡ºç»™cacheï¼Œä¼ é€’ç»™lgt
 import maya.cmds as cmds
 
 def buildFacialInfo(textureNode, dirveName='cache', direction='node_to_cache'):
     """
-    ÎªÖ¸¶¨µÄ½ÚµãÔÚcache×éÉÏÌí¼ÓÒ»¸ö×Ô¶¨ÒåfloatÊôĞÔ£¬²¢¸ù¾İ·½Ïò²ÎÊı¾ö¶¨Á¬½Ó·½Ïò¡£
+    ä¸ºæŒ‡å®šçš„èŠ‚ç‚¹åœ¨cacheç»„ä¸Šæ·»åŠ ä¸€ä¸ªè‡ªå®šä¹‰floatå±æ€§ï¼Œå¹¶æ ¹æ®æ–¹å‘å‚æ•°å†³å®šè¿æ¥æ–¹å‘ã€‚
 
-    :param textureNode: ĞèÒªÁ¬½ÓµÄ½ÚµãÃû³Æ
-    :param dirveName: ĞèÒªÌí¼ÓÊôĞÔµÄcache×éÃû³Æ
-    :param direction: ¿ØÖÆÁ¬½Ó·½Ïò£¬Ä¬ÈÏÖµÎª 'node_to_cache'¡£
-                      ¿ÉÑ¡Öµ:
-                      - 'node_to_cache'£º½ÚµãµÄcgrÊôĞÔ¿ØÖÆcacheµÄÊôĞÔ£¨Ä¬ÈÏ£©¡£
-                      - 'cache_to_node'£ºcacheµÄÊôĞÔ¿ØÖÆ½ÚµãµÄcgrÊôĞÔ¡£
+    :param textureNode: éœ€è¦è¿æ¥çš„èŠ‚ç‚¹åç§°
+    :param dirveName: éœ€è¦æ·»åŠ å±æ€§çš„cacheç»„åç§°
+    :param direction: æ§åˆ¶è¿æ¥æ–¹å‘ï¼Œé»˜è®¤å€¼ä¸º 'node_to_cache'ã€‚
+                      å¯é€‰å€¼:
+                      - 'node_to_cache'ï¼šèŠ‚ç‚¹çš„cgrå±æ€§æ§åˆ¶cacheçš„å±æ€§ï¼ˆé»˜è®¤ï¼‰ã€‚
+                      - 'cache_to_node'ï¼šcacheçš„å±æ€§æ§åˆ¶èŠ‚ç‚¹çš„cgrå±æ€§ã€‚
     """
-    # ¼ì²é½ÚµãÊÇ·ñ´æÔÚ
+    # æ£€æŸ¥èŠ‚ç‚¹æ˜¯å¦å­˜åœ¨
     if not cmds.objExists(textureNode):
-        cmds.error("½Úµã '{}' ²»´æÔÚ¡£".format(textureNode))
+        cmds.error("èŠ‚ç‚¹ '{}' ä¸å­˜åœ¨ã€‚".format(textureNode))
         return
 
-    # ¼ì²écache×éÊÇ·ñ´æÔÚ
+    # æ£€æŸ¥cacheç»„æ˜¯å¦å­˜åœ¨
     if not cmds.objExists(dirveName):
-        cmds.error("Cache×é '{}' ²»´æÔÚ¡£".format(dirveName))
+        cmds.error("Cacheç»„ '{}' ä¸å­˜åœ¨ã€‚".format(dirveName))
         return
 
-    # Ê¹ÓÃ´«µİµÄ textureNode Ãû³Æ×÷ÎªÊôĞÔÃû³Æ
+    # ä½¿ç”¨ä¼ é€’çš„ textureNode åç§°ä½œä¸ºå±æ€§åç§°
     attr_name = textureNode
 
-    # Îª cache ×éÌí¼ÓÒ»¸ö float ÀàĞÍµÄ×Ô¶¨ÒåÊôĞÔ
+    # ä¸º cache ç»„æ·»åŠ ä¸€ä¸ª float ç±»å‹çš„è‡ªå®šä¹‰å±æ€§
     if not cmds.attributeQuery(attr_name, node=dirveName, exists=True):
         cmds.addAttr(dirveName, longName=attr_name, attributeType='float', keyable=True)
 
-    # »ñÈ¡½ÚµãµÄ cgr ÊôĞÔ
+    # è·å–èŠ‚ç‚¹çš„ cgr å±æ€§
     cgr_attr = "{}.cgr".format(textureNode)
     if not cmds.objExists(cgr_attr):
-        cmds.error("{} ÉÏ²»´æÔÚ 'cgr' ÊôĞÔ¡£".format(textureNode))
+        cmds.error("{} ä¸Šä¸å­˜åœ¨ 'cgr' å±æ€§ã€‚".format(textureNode))
         return
 
-    # ¸ù¾İ direction ²ÎÊı¾ö¶¨Á¬½Ó·½Ïò
+    # æ ¹æ® direction å‚æ•°å†³å®šè¿æ¥æ–¹å‘
     if direction == 'node_to_cache':
-        # ½ÚµãµÄ cgr ÊôĞÔ¿ØÖÆ cache ×éµÄÊôĞÔ
+        # èŠ‚ç‚¹çš„ cgr å±æ€§æ§åˆ¶ cache ç»„çš„å±æ€§
         cmds.connectAttr(cgr_attr, "{}.{}".format(dirveName, attr_name), force=True)
-        print("³É¹¦Á¬½Ó£º'{}.{}' ÓÉ '{}' ¿ØÖÆ".format(dirveName, attr_name, cgr_attr))
+        print("æˆåŠŸè¿æ¥ï¼š'{}.{}' ç”± '{}' æ§åˆ¶".format(dirveName, attr_name, cgr_attr))
 
     elif direction == 'cache_to_node':
-        # cache ×éµÄÊôĞÔ¿ØÖÆ½ÚµãµÄ cgr ÊôĞÔ
+        # cache ç»„çš„å±æ€§æ§åˆ¶èŠ‚ç‚¹çš„ cgr å±æ€§
         cmds.connectAttr("{}.{}".format(dirveName, attr_name), cgr_attr, force=True)
         cmds.setAttr(dirveName+'.'+attr_name,1.0)
-        print("³É¹¦Á¬½Ó£º'{}' ÓÉ '{}.{}' ¿ØÖÆ".format(cgr_attr, dirveName, attr_name))
+        print("æˆåŠŸè¿æ¥ï¼š'{}' ç”± '{}.{}' æ§åˆ¶".format(cgr_attr, dirveName, attr_name))
 
     else:
-        cmds.error("ÎŞĞ§µÄ direction ²ÎÊı¡£ÇëÊ¹ÓÃ 'node_to_cache' »ò 'cache_to_node'¡£")
+        cmds.error("æ— æ•ˆçš„ direction å‚æ•°ã€‚è¯·ä½¿ç”¨ 'node_to_cache' æˆ– 'cache_to_node'ã€‚")
 
 
 def split_layered_texture( node_name, layer_limit=7 ):
-    # ¼ì²é½ÚµãÊÇ·ñÊÇ layeredTexture
+    # æ£€æŸ¥èŠ‚ç‚¹æ˜¯å¦æ˜¯ layeredTexture
     if not cmds.nodeType(node_name) == "layeredTexture":
-        raise ValueError("Ö¸¶¨µÄ½Úµã²»ÊÇÒ»¸ö layeredTexture ½Úµã")
+        raise ValueError("æŒ‡å®šçš„èŠ‚ç‚¹ä¸æ˜¯ä¸€ä¸ª layeredTexture èŠ‚ç‚¹")
 
-    # »ñÈ¡Í¼²ãÊıÁ¿
+    # è·å–å›¾å±‚æ•°é‡
     layers = cmds.getAttr("{}.inputs".format(node_name), multiIndices=True)
 
     if len(layers) <= layer_limit:
-        print("Í¼²ãÊıÁ¿ÔÚÏŞÖÆ·¶Î§ÄÚ£¬ÎŞĞè²ğ·Ö")
-        return node_name  # Èç¹ûÃ»ÓĞ³¬³öÏŞÖÆ£¬·µ»ØÔ­Ê¼½Úµã
+        print("å›¾å±‚æ•°é‡åœ¨é™åˆ¶èŒƒå›´å†…ï¼Œæ— éœ€æ‹†åˆ†")
+        return node_name  # å¦‚æœæ²¡æœ‰è¶…å‡ºé™åˆ¶ï¼Œè¿”å›åŸå§‹èŠ‚ç‚¹
 
-    # ±£ÁôÇ° 7 ²ãÁ¬½Ó
+    # ä¿ç•™å‰ 7 å±‚è¿æ¥
     layers_to_keep = layers[:layer_limit]
     remaining_layers = layers[layer_limit:]
 
-    # ´´½¨ĞÂµÄ layeredTexture ½ÚµãÀ´´æ´¢¶àÓàµÄ²ã
+    # åˆ›å»ºæ–°çš„ layeredTexture èŠ‚ç‚¹æ¥å­˜å‚¨å¤šä½™çš„å±‚
     new_layered_node = cmds.shadingNode("layeredTexture", asShader=True)
 
-    # ÒÆ¶¯¶àÓàµÄ²ãµ½ĞÂ½Úµã£¬²¢±£Áô½ÚµãÁ¬½Ó
+    # ç§»åŠ¨å¤šä½™çš„å±‚åˆ°æ–°èŠ‚ç‚¹ï¼Œå¹¶ä¿ç•™èŠ‚ç‚¹è¿æ¥
     for i, layer_index in enumerate(remaining_layers):
         source_attr_prefix = "{}.inputs[{}]".format(node_name, layer_index)
 
-        # ²éÑ¯ĞèÒªÒÆ¶¯µÄÊôĞÔ
-        connected_attributes = ["color", "alpha", "blendMode"]  # ³£¼ûÊôĞÔ
+        # æŸ¥è¯¢éœ€è¦ç§»åŠ¨çš„å±æ€§
+        connected_attributes = ["color", "alpha", "blendMode"]  # å¸¸è§å±æ€§
         for attr in connected_attributes:
             source_attr = "{}.{}".format(source_attr_prefix, attr)
             connections = cmds.listConnections(source_attr, plugs=True, destination=False)
@@ -386,7 +386,7 @@ def split_layered_texture( node_name, layer_limit=7 ):
                 dest_attr = "{}.inputs[{}].{}".format(new_layered_node, i, attr)
                 cmds.connectAttr(connections[0], dest_attr, force=True)
             else:
-                # Èç¹ûÃ»ÓĞÁ¬½Ó£¬µ«ĞèÒª¸´ÖÆ¾²Ì¬Öµ
+                # å¦‚æœæ²¡æœ‰è¿æ¥ï¼Œä½†éœ€è¦å¤åˆ¶é™æ€å€¼
                 if cmds.objExists(source_attr):
                     value = cmds.getAttr(source_attr)
                     if attr == "color":
@@ -395,17 +395,17 @@ def split_layered_texture( node_name, layer_limit=7 ):
                     else:
                         cmds.setAttr("{}.inputs[{}].{}".format(new_layered_node, i, attr), value)
 
-    # É¾³ı¾ÉµÄÁ¬½Ó
+    # åˆ é™¤æ—§çš„è¿æ¥
     for layer_index in remaining_layers:
         cmds.removeMultiInstance("{}.inputs[{}]".format(node_name, layer_index), b=True)
-    # ²éÕÒÔ­Ê¼½ÚµãµÄµÚ 8 ²ã
+    # æŸ¥æ‰¾åŸå§‹èŠ‚ç‚¹çš„ç¬¬ 8 å±‚
     existing_layers = cmds.getAttr("{}.inputs".format(node_name), multiIndices=True)
     new_layer_index = max(existing_layers) + 1 if existing_layers else 0
-    # ½«ĞÂµÄ layeredTexture ½Úµã×÷ÎªµÚ 8 ²ãÁ¬½Ó»ØÔ­Ê¼½Úµã
-    cmds.setAttr("{}.inputs[{}].blendMode".format(node_name, new_layer_index), 0)  # Ä¬ÈÏÉèÖÃÎª»ìºÏÄ£Ê½
+    # å°†æ–°çš„ layeredTexture èŠ‚ç‚¹ä½œä¸ºç¬¬ 8 å±‚è¿æ¥å›åŸå§‹èŠ‚ç‚¹
+    cmds.setAttr("{}.inputs[{}].blendMode".format(node_name, new_layer_index), 0)  # é»˜è®¤è®¾ç½®ä¸ºæ··åˆæ¨¡å¼
     cmds.connectAttr("{}.outColor".format(new_layered_node), "{}.inputs[{}].color".format(node_name, new_layer_index),
                      force=True)
-    print("ÒÑÍê³É²ğ·Ö£¬ĞÂµÄ layeredTexture ½ÚµãÎª£º{}".format(new_layered_node))
+    print("å·²å®Œæˆæ‹†åˆ†ï¼Œæ–°çš„ layeredTexture èŠ‚ç‚¹ä¸ºï¼š{}".format(new_layered_node))
     return new_layered_node
 
 

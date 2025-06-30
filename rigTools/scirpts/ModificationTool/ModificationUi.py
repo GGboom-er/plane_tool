@@ -767,7 +767,7 @@ class FacialTextureClass(QtWidgets.QDialog):
             self.data_dict[title] = row_data
     def createDirve( self ):
         self.getAllTableData()
-        fts.addDirveAttr()
+        fts.addDriveAttr()
         fileNode = list()
         for dirve, infos in self.data_dict.items():
             for name, info in infos.items():
