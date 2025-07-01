@@ -1,128 +1,67 @@
-# Plane Tool Project
+# Plane Tool Project (平面工具项目)
 
-这是一个用于各种CG工作流程的工具集合，主要涵盖动画、批处理、Blender、缓存、模型、绑定和虚幻引擎等方面的工具。
+**一个为CGI/DCC工作流设计的综合性工具集，旨在提升动画、绑定、建模、缓存以及与Unreal Engine交互的效率和质量。**
+(A comprehensive toolset designed for CGI/DCC workflows, aimed at enhancing efficiency and quality in animation, rigging, modeling, caching, and Unreal Engine interaction.)
 
-## 目录结构
+## 核心功能模块 (Core Functional Modules)
 
-- `aniTools/`: 动画相关工具，可能包含参考管理、路径修改、动画曲线平滑等功能。
-- `batchTools/`: 批处理工具，用于自动化执行一些重复性任务，例如批量处理参考文件或检查Maya文件。
-- `blenderTools/`: Blender相关工具，用于Blender软件中的各种操作，如驱动、材质、修改器、文件导入导出等。
-- `cacheTools/`: 缓存工具，用于处理模型序列缓存的构建和导出。
-- `GGbommer/`: 可能包含一些通用工具或UI界面相关的代码。
-- `modTools/`: 模型修改工具，可能包含UV修复、网格匹配、肌肉系统、纹理绑定等功能。
-- `ourthTools/`: 其他通用工具，例如图像转换或视频压缩。
-- `rigTools/`: 绑定工具，包含角色绑定、蒙皮、骨骼、DNA绑定等高级功能。
-- `ueTools/`: 虚幻引擎相关工具，用于Maya和虚幻引擎之间的数据交互，例如FBX导入和导出。
-- `__pycache__/`: Python编译缓存目录。
-- `.git/`: Git版本控制相关文件。
-- `.idea/`: IDE（如PyCharm）项目配置文件。
-- `.ts/`: 可能是一些时间序列或特定工具的配置文件。
-- `__init__.py`: Python包初始化文件。
-- `test.py`, `test2.py`: 测试脚本。
-- `.gitignore`: Git忽略文件配置。
+### 1. 动画工具 (Animation Tools) - `aniTools/`
+*   **引用管理 (Reference Management)**: 提供批处理引用、修改引用路径和修复引用名称的功能，确保大型场景中引用资产的稳定性和可管理性。
+*   **关键帧优化 (Keyframe Optimization)**: 包含关键帧减面（`keyframeReduction`）和动画曲线平滑（`smoothAnimCurve`）工具，用于精简动画数据，提高播放性能和编辑效率。
+*   **动画重定向 (Animation Retargeting)**: 支持动画在不同骨骼结构间的重定向，提高动画资产的复用性。
 
-## 主要模块功能概述
+### 2. 绑定工具 (Rigging Tools) - `rigTools/`
+*   **高级角色绑定系统 (Advanced Character Rigging System)**: `MHC/` 模块专注于DNA数据处理、BlendShape驱动、LOD管理和网格匹配，支持复杂角色绑定，实现高精度形变。
+*   **蒙皮与权重管理 (Skinning & Weight Management)**: 提供快速蒙皮（`Quick_skin.py`）和蒙皮权重复制（`copySkinWeight/`）等功能，简化蒙皮流程，确保权重分配的准确性。
+*   **骨骼与约束操作 (Joint & Constraint Operations)**: 包含重建骨骼层级、重建约束、关节转换等基础骨骼操作，以及属性集函数、通道盒颜色等辅助功能。
+*   **BlendShape与SDK (BlendShape & SDK)**: 支持构建BlendShape、创建BlendShape驱动文件、管理BlendShape连接以及动画到Set Driven Key (SDK) 的转换，用于高级表情和形变控制。
+*   **自定义高级骨骼 (Custom Advanced Skeleton)**: `customADV/` 模块可能包含对Advanced Skeleton等现有绑定框架的定制和扩展。
 
-### `aniTools` (动画工具)
-- `batchReference.py`: 批量处理参考文件。
-- `changeRNPath.py`: 修改参考节点路径。
-- `fixReferenceName.py`: 修复参考名称。
-- `WretargetTool.py`: 重定向工具。
-- `smoothAnimCurve/`: 动画曲线平滑工具。
+### 3. 建模工具 (Modeling Tools) - `modTools/`
+*   **拓扑与UV处理 (Topology & UV Processing)**: 提供修复UV集、传输UV、四边形修补（`quadPatcher`）等功能，确保模型拓扑和UV的正确性和优化。
+*   **肌肉与纹理绑定 (Muscle & Texture Rigging)**: 包含肌肉工具（`muscleTool`）和纹理绑定（`textureRig`）相关功能，用于创建更真实的形变和视觉效果。
 
-### `batchTools` (批处理工具)
-- `batch_RN.py`: 批量参考节点处理。
-- `checkMA.py`: 检查Maya文件。
-- `textCheckMa.py`: 文本检查Maya文件。
+### 4. 批处理工具 (Batch Processing Tools) - `batchTools/`
+*   专注于自动化重复性任务，例如批处理引用节点（`batch_RN.py`）和Maya文件检查（`checkMA.py`），大幅提升工作效率。
 
-### `blenderTools` (Blender工具)
-- `addDirve.py`: 添加驱动。
-- `appendCache.py`: 追加缓存。
-- `appendFile.py`: 追加文件。
-- `copyMaterial.py`: 复制材质。
-- `delDeform.py`: 删除形变。
-- `Editmodifier.py`: 编辑修改器。
-- `export_curveTomaya.py`: 导出曲线到Maya。
-- `moveOutline.py`: 移动大纲。
-- `optimizBlender.py`: 优化Blender文件。
-- `renameShape.py`: 重命名形状。
-- `setDrive.py`: 设置驱动。
-- `setLightValueFn.py`: 设置灯光值函数。
+### 5. Blender 工具 (Blender Tools) - `blenderTools/`
+*   提供Blender内部的各种操作，如添加驱动、导入导出曲线到Maya、优化Blender场景等，促进Blender在CGI管线中的应用。
 
-### `cacheTools` (缓存工具)
-- `buildSequenceMeshDFM.py`: 构建序列网格DFM。
-- `buildSequenceMeshDFM2.py`: 构建序列网格DFM2。
-- `exportCache.py`: 导出缓存。
+### 6. Unreal Engine 工具 (Unreal Engine Tools) - `ueTools/`
+*   包含FBX导入到材质（`inputFBXToMat.py`）和Maya到UE的FBX导出（`mayaToUeFbx.py`）功能，支持资产在Maya和Unreal Engine之间的顺畅流通，优化游戏开发流程。
 
-### `modTools` (模型修改工具)
-- `fixUVset.py`: 修复UV集。
-- `matchMesh.py`: 网格匹配。
-- `muscleTool_v1.0.py`: 肌肉工具。
-- `quadPatcher_v1.0.py`: 四边面修补工具。
-- `senceInfoFn.pyc`: 场景信息函数。
-- `textureRig.py`: 纹理绑定。
-- `transferUV.py`: 传输UV。
-- `transSGInfo.py`: 传输SG信息。
-- `AriStraightVertex/`: 顶点拉直工具。
-- `MuscleJointSystem/`: 肌肉关节系统。
+### 7. 通用辅助工具 (General Utilities) - `ourthTools/`
+*   包含图像转换和MP4压缩等通用工具，为日常工作提供便利。
 
-### `ourthTools` (其他工具)
-- `comMp4.py`: MP4压缩。
-- `convert_image.py`: 图像转换。
+## 配置说明 (Configuration Details)
 
-### `rigTools` (绑定工具)
-- `MHC/`: 角色绑定、DNA绑定相关。
-- `qc/skinning-tools/`: 蒙皮工具。
-- `scirpts/`: 各种绑定脚本，例如：
-    - `animToSDK.py`: 动画到SDK。
-    - `atachCurveEPToMesh.py`: 曲线EP附加到网格。
-    - `attrSetsFn.py`: 属性设置函数。
-    - `buildBS.py`: 构建混合形状。
-    - `channelBoxColor.py`: 通道盒颜色。
-    - `compareInMaya.py`: Maya中比较。
-    - `create_bs_connection_manager.py`: 创建混合形状连接管理器。
-    - `exprotUSD.py`: 导出USD。
-    - `getMax_inf.py`: 获取最大影响。
-    - `getMeshCenterCurve.py`: 获取网格中心曲线。
-    - `getWarpBS.py`: 获取扭曲混合形状。
-    - `locToMeshNormal.py`: 定位器到网格法线。
-    - `Quick_skin_2025.py`, `Quick_skin.py`: 快速蒙皮工具。
-    - `rebuildBoneHierarchy.py`: 重建骨骼层级。
-    - `rebuildConstraint.py`: 重建约束。
-    - `reConnectBSDIrve.py`: 重新连接混合形状驱动。
-    - `renameParent.py`: 重命名父级。
-    - `replaceAsset.py`: 替换资产。
-    - `replaceAttr.py`: 替换属性。
-    - `setSDK.py`: 设置SDK。
-    - `skinClusterFn.py`: 蒙皮簇函数。
-    - `softSelToSoftmod.py`: 软选择到软修改。
-    - `tools.py`, `util.py`: 通用工具函数。
-    - `attrToolsPK/`: 属性工具包。
-    - `copySkinWeight/`: 复制蒙皮权重。
-    - `customADV/`: 自定义高级骨骼。
-    - `CutTime/`: 时间切割工具。
-    - `kz_secondaryCtrl/`: 次级控制器。
-    - `ReBlendShapeTool/`: 重新混合形状工具。
+### `dcc_port_map.json`
+此文件用于管理DCC应用程序（如Maya, Blender）的远程命令端口映射。`GGbommer/winUI.py` 等工具通过Socket连接这些端口以发送命令。
 
-### `ueTools` (虚幻引擎工具)
-- `inputFBXToMat.py`: FBX输入到材质。
-- `mayaToUeFbx.py`: Maya到UE的FBX导出。
-- `utils.py`: 通用工具函数。
-
-### `GGbommer/winUI.py` 端口映射说明
-此界面需要通过 Socket 向 Maya 或 Blender 发送命令。由于官方并未为
-Maya 2025 或 Blender 4.3 提供默认的远程执行端口，启动软件时需显式
-打开 `commandPort` 并记录端口号。建议在启动脚本中将端口和对应进程
-PID 写入根目录下的 `dcc_port_map.json`，格式示例：
-
+**格式示例 (Example Format):**
 ```json
 {
     "1234": 7002,
     "2345": 7003
 }
 ```
+其中，键为进程ID (PID)，值为对应的 `commandPort` 端口号。
 
-界面启动后会读取该文件以确定每个进程的端口号。若未找到端口映射，则
-按钮会提示"Port is unknown"并不会尝试发送命令。
+**使用说明 (Usage Notes):**
+由于DCC软件通常不默认开启远程命令端口，建议在启动脚本中显式开启 `commandPort` 并将进程ID和端口号写入此JSON文件。工具界面启动后会读取此文件以确定每个进程的可用端口。若未找到端口映射，相关功能将提示“Port is unknown”并不会尝试发送命令。
 
+## 安装 (Installation)
+(待补充：此处将提供详细的安装步骤，包括环境配置、依赖安装和工具路径设置等。)
+(To be completed: This section will provide detailed installation steps, including environment configuration, dependency installation, and tool path setup.)
 
+## 使用 (Usage)
+(待补充：此处将提供工具的通用使用指南和常见工作流示例。)
+(To be completed: This section will provide general usage guidelines and common workflow examples for the tools.)
+
+## 贡献 (Contributing)
+(待补充：欢迎社区贡献，此处将提供贡献指南。)
+(To be completed: Community contributions are welcome. This section will provide contribution guidelines.)
+
+## 许可证 (License)
+(待补充：此处将说明项目的许可证信息。)
+(To be completed: This section will state the project's license information.)
