@@ -1,3 +1,13 @@
+#!/usr/bin/env python
+# _*_ coding:cp936 _*_
+"""
+@author: GGboom
+@license: MIT
+@contact: https://github.com/GGboom-er
+@file: MHC_DNA_FN.py
+@date: 2024/8/29 15:26
+@desc:
+"""
 from dna import DataLayer_All, FileStream, Status, BinaryStreamReader, BinaryStreamWriter
 import maya.cmds as cmds
 import pymel.core as pm
@@ -202,13 +212,3 @@ num_columns = 291
 column_e_data = [value_table[row * num_columns + column_index] for row in range(num_rows)]
 
 reader.getJointName(43)
-
-
-
-
-
-
-
-
-
-
