@@ -26,14 +26,14 @@ except ImportError:
 
 
 class MDColors(object):
-    PRIMARY = "#448AFF"
-    PRIMARY_DARK = "#2962FF"
-    PRIMARY_LIGHT = "#3C577A"
-    SECONDARY = "#FF6E40"
+    PRIMARY = "#64D2B9"       # 原: #448AFF
+    PRIMARY_DARK = "#55B69F"  # 原: #2962FF
+    PRIMARY_LIGHT = "#3C577A" # 不变
+    SECONDARY = "#EB886B"     # 原: #FF6E40
     SURFACE = "#4A4A4A"
     BACKGROUND = "#3C3C3C"
     BACKGROUND_DARK = "#323232"
-    ERROR = "#FF5252"
+    ERROR = "#E88B8B"         # 原: #FF5252
     ERROR_LIGHT = "#5C3B3B"
     WARNING = "#FFC400"
     SUCCESS = "#69F0AE"
