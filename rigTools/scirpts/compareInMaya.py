@@ -1,16 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 @author: GGboom
 @license: MIT
 @contact: https://github.com/GGboom-er
 @file: compareInMaya.py
-@date: 2023/12/11 13:29
+@date: 2025/07/14 13:29
 @desc:
 """
 import maya.cmds as cmds
-import maya.api.OpenMaya as om
+import maya.api.OpenMaya as om2
 
 try:
     from maya.api.OpenMayaUI import MQtUtil
@@ -26,14 +25,14 @@ except ImportError:
 
 
 class MDColors(object):
-    PRIMARY = "#64D2B9"       # 原: #448AFF
+    PRIMARY = "#64D2B9"  # 原: #448AFF
     PRIMARY_DARK = "#55B69F"  # 原: #2962FF
-    PRIMARY_LIGHT = "#3C577A" # 不变
-    SECONDARY = "#EB886B"     # 原: #FF6E40
+    PRIMARY_LIGHT = "#3C577A"  # 不变
+    SECONDARY = "#EB886B"  # 原: #FF6E40
     SURFACE = "#4A4A4A"
     BACKGROUND = "#3C3C3C"
     BACKGROUND_DARK = "#323232"
-    ERROR = "#E88B8B"         # 原: #FF5252
+    ERROR = "#E88B8B"  # 原: #FF5252
     ERROR_LIGHT = "#5C3B3B"
     WARNING = "#FFC400"
     SUCCESS = "#69F0AE"
@@ -46,27 +45,27 @@ class MDColors(object):
 
 # ------------------------- Utility functions -------------------------
 
-def get_name_without_namespace(name):
+def get_name_without_namespace( name ):
     return name.split(":")[-1]
 
 
-def get_transform_from_shape(shape):
+def get_transform_from_shape( shape ):
     parents = cmds.listRelatives(shape, parent=True, fullPath=False) or []
     return parents[0] if parents else shape
 
 
-def get_shape_node(node):
+def get_shape_node( node ):
     shapes = cmds.listRelatives(node, children=True, shapes=True, ni=1, fullPath=True) or []
     return shapes[0] if shapes else None
 
 
-def compare_vertex_positions(s1, s2):
-    sel = om.MSelectionList()
+def compare_vertex_positions( s1, s2 ):
+    sel = om2.MSelectionList()
     sel.add(s1)
     sel.add(s2)
     path1, path2 = sel.getDagPath(0), sel.getDagPath(1)
-    m1, m2 = om.MFnMesh(path1), om.MFnMesh(path2)
-    pts1, pts2 = m1.getPoints(om.MSpace.kWorld), m2.getPoints(om.MSpace.kWorld)
+    m1, m2 = om2.MFnMesh(path1), om2.MFnMesh(path2)
+    pts1, pts2 = m1.getPoints(om2.MSpace.kWorld), m2.getPoints(om2.MSpace.kWorld)
 
     if len(pts1) != len(pts2):
         return None, len(pts1), len(pts2)
@@ -79,7 +78,7 @@ def compare_vertex_positions(s1, s2):
     return rate, 0.0, 0.0
 
 
-def match_hierarchy_recursive(ref, tgt, lookup, out):
+def match_hierarchy_recursive( ref, tgt, lookup, out ):
     refs = cmds.listRelatives(ref, children=True, type="transform") or []
     tgts = cmds.listRelatives(tgt, children=True, type="transform") or []
     matched = set()
@@ -96,9 +95,8 @@ def match_hierarchy_recursive(ref, tgt, lookup, out):
                 orig = ts + "Orig"
                 if cmds.objExists(orig):
                     diff = compare_vertex_positions(rs, orig)
-                    if diff and diff[0] is not None:
+                    if diff and (diff[0] is None or diff[0] > 0):
                         out["Diff"].append((rs, orig, diff))
-
             match_hierarchy_recursive(r, t, lookup, out)
         else:
             out["Ref"].append(r)
@@ -108,7 +106,7 @@ def match_hierarchy_recursive(ref, tgt, lookup, out):
             out["Tgt"].append(t)
 
 
-def match_hierarchy(ref_grp, tgt_grp):
+def match_hierarchy( ref_grp, tgt_grp ):
     all_tgts = cmds.listRelatives(tgt_grp, allDescendents=True, type="transform") or []
     lookup = {get_name_without_namespace(n): n for n in all_tgts}
     out = {"Ref": [], "Tgt": [], "Diff": []}
@@ -117,25 +115,24 @@ def match_hierarchy(ref_grp, tgt_grp):
 
 
 # ------------------------- UI widgets -------------------------
-
 class MDClickableLabel(QtWidgets.QLabel):
     doubleClicked = QtCore.Signal(str)
 
-    def __init__(self, text, target, label_type="primary", parent=None):
+    def __init__( self, text, target, label_type="primary", parent=None ):
         super(MDClickableLabel, self).__init__(text, parent)
         self.target = target
         self.label_type = label_type
         self.setCursor(QtGui.QCursor(QtCore.Qt.PointingHandCursor))
         self._setup_style()
 
-    def set_text_and_target(self, text, target):
+    def set_text_and_target( self, text, target ):
         self.setText(text)
         self.target = target
 
-    def _setup_style(self):
+    def _setup_style( self ):
         color_map = {
             "primary": (MDColors.PRIMARY, MDColors.PRIMARY_LIGHT),
-            "error": (MDColors.ERROR, MDColors.ERROR_LIGHT),
+            "error"  : (MDColors.ERROR, MDColors.ERROR_LIGHT),
             "success": (MDColors.SUCCESS, MDColors.SUCCESS_LIGHT),
         }
         color, bg = color_map.get(self.label_type, (MDColors.TEXT_PRIMARY, MDColors.SURFACE))
@@ -197,7 +194,7 @@ class MDDataCard(QtWidgets.QFrame):
 # ------------------------- Main dialog -------------------------
 
 class CompareUI(QtWidgets.QDialog):
-    def __init__(self, parent=None):
+    def __init__( self, parent=None ):
         if parent is None:
             ptr = MQtUtil.mainWindow()
             parent = shiboken.wrapInstance(int(ptr), QtWidgets.QWidget)
@@ -211,7 +208,7 @@ class CompareUI(QtWidgets.QDialog):
 
     # --- UI construction ---------------------------------------------------
 
-    def _setup_ui(self):
+    def _setup_ui( self ):
         self.setStyleSheet(
             "QDialog {{ background-color:{0}; color:{1}; }}".format(
                 MDColors.BACKGROUND_DARK, MDColors.TEXT_PRIMARY
@@ -236,7 +233,7 @@ class CompareUI(QtWidgets.QDialog):
         splitter.addWidget(self._create_group_box(u"参考未匹配", self.list_ref, MDColors.ERROR))
         splitter.addWidget(self._create_group_box(u"绑定未匹配", self.list_tgt, MDColors.PRIMARY))
         splitter.addWidget(
-            self._create_group_box(u"差异分析 (Diff > 0.01%)", self.list_diff, MDColors.WARNING)
+            self._create_group_box(u"差异分析", self.list_diff, MDColors.WARNING)  # 标题去掉阈值，因为现在包含两种差异
         )
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
@@ -249,7 +246,7 @@ class CompareUI(QtWidgets.QDialog):
         main_layout.addWidget(splitter, 1)
         self._populate_empty_state()
 
-    def _create_top_bar(self):
+    def _create_top_bar( self ):
         widget = QtWidgets.QWidget()
         layout = QtWidgets.QHBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -295,7 +292,7 @@ class CompareUI(QtWidgets.QDialog):
         layout.addStretch(1)
         return widget
 
-    def _create_list_widget(self):
+    def _create_list_widget( self ):
         lw = QtWidgets.QListWidget()
         lw.setStyleSheet(
             "QListWidget {{ background-color:{0}; border:none; border-radius:8px; padding:2px; }} "
@@ -308,7 +305,7 @@ class CompareUI(QtWidgets.QDialog):
         lw.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         return lw
 
-    def _create_group_box(self, title, widget, accent):
+    def _create_group_box( self, title, widget, accent ):
         gb = QtWidgets.QGroupBox(title)
         gb.setStyleSheet(
             "QGroupBox {{ background-color:{0}; border:2px solid {1}; border-radius:12px; "
@@ -326,7 +323,7 @@ class CompareUI(QtWidgets.QDialog):
 
     # --- Business logic ----------------------------------------------------
 
-    def analyze_selection(self):
+    def analyze_selection( self ):
         selection = cmds.ls(sl=True, type="transform")
         if len(selection) != 2:
             cmds.warning(u"请选择两个组进行对比：一个带命名空间（参考），一个不带（目标）。")
@@ -343,8 +340,7 @@ class CompareUI(QtWidgets.QDialog):
         self.tgt_label.set_text_and_target(u"目标: {0}".format(self.tgt_grp), self.tgt_grp)
         self.refresh()
 
-
-    def highlight(self, nodes, mode):
+    def highlight( self, nodes, mode ):
         idx = 13 if mode == "Ref" else 6
         for n in nodes:
             if cmds.objExists(n):
@@ -353,7 +349,7 @@ class CompareUI(QtWidgets.QDialog):
                     cmds.setAttr("{0}.overrideEnabled".format(s), 1)
                     cmds.setAttr("{0}.overrideColor".format(s), idx)
 
-    def refresh(self):
+    def refresh( self ):
         if not (self.ref_grp and self.tgt_grp):
             cmds.warning(u"请先选择参考组和目标组进行分析。")
             self._populate_empty_state()
@@ -371,27 +367,40 @@ class CompareUI(QtWidgets.QDialog):
         self._populate_list(self.list_ref, data["Ref"], "Ref", u"无未匹配项")
         self._populate_list(self.list_tgt, data["Tgt"], "Tgt", u"无未匹配项")
 
-        diff_items = [d for d in data["Diff"] if d[2][0] > 0.0001]
-        diff_items.sort(key=lambda x: x[2][0], reverse=True)
+        count_mismatch_items = [d for d in data["Diff"] if d[2][0] is None]
+        pos_diff_items = [d for d in data["Diff"] if d[2][0] is not None and d[2][0] > 0.0001]
 
-        if diff_items:
-            for s, o, (rate, max_diff, min_diff) in diff_items:
-                widget = self._create_diff_widget(s, o, rate, min_diff, max_diff)
+        pos_diff_items.sort(key=lambda x: x[2][0], reverse=True)
+
+        all_diff_items = count_mismatch_items + pos_diff_items
+
+        if all_diff_items:
+            for item_data in all_diff_items:
+                s, o, diff_tuple = item_data
+
+                if diff_tuple[0] is None:
+                    _, ref_count, tgt_count = diff_tuple
+                    widget = self._create_count_mismatch_widget(s, o, ref_count, tgt_count)
+                else:
+                    rate, max_diff, min_diff = diff_tuple
+                    widget = self._create_diff_widget(s, o, rate, min_diff, max_diff)
+
                 item = QtWidgets.QListWidgetItem()
                 item.setSizeHint(widget.sizeHint())
                 self.list_diff.addItem(item)
                 self.list_diff.setItemWidget(item, widget)
         else:
-            self._add_empty_message(self.list_diff, u"无明显差异项 (>0.01%)")
+            self._add_empty_message(self.list_diff, u"无明显差异项或点数不匹配")
+        # --- MODIFICATION END ---
 
     # --- Helpers -----------------------------------------------------------
 
-    def _populate_empty_state(self):
+    def _populate_empty_state( self ):
         for lw in (self.list_ref, self.list_tgt, self.list_diff):
             lw.clear()
             self._add_empty_message(lw, u"请先进行分析")
 
-    def _add_empty_message(self, lw, msg):
+    def _add_empty_message( self, lw, msg ):
         item = QtWidgets.QListWidgetItem(msg)
         item.setTextAlignment(QtCore.Qt.AlignCenter)
         font = item.font()
@@ -401,7 +410,7 @@ class CompareUI(QtWidgets.QDialog):
         item.setFlags(item.flags() & ~QtCore.Qt.ItemIsSelectable)
         lw.addItem(item)
 
-    def _populate_list(self, lw, nodes, mode, empty_msg):
+    def _populate_list( self, lw, nodes, mode, empty_msg ):
         if nodes:
             for n in sorted(nodes):
                 widget = self._create_unmatched_widget(n, mode)
@@ -413,7 +422,7 @@ class CompareUI(QtWidgets.QDialog):
         else:
             self._add_empty_message(lw, empty_msg)
 
-    def _create_unmatched_widget(self, node_name, mode):
+    def _create_unmatched_widget( self, node_name, mode ):
         frame = QtWidgets.QFrame()
         frame.setStyleSheet("background-color:transparent;")
         layout = QtWidgets.QHBoxLayout(frame)
@@ -426,7 +435,38 @@ class CompareUI(QtWidgets.QDialog):
         layout.addWidget(label)
         return frame
 
-    def _create_diff_widget(self, s, o, rate, min_diff, max_diff):
+    def _create_count_mismatch_widget( self, s, o, ref_count, tgt_count ):
+        frame = QtWidgets.QFrame()
+        frame.setStyleSheet(
+            "QFrame {{ background-color:{0}; border:2px solid {1}; border-radius:8px; padding:8px; }}".format(
+                MDColors.ERROR_LIGHT, MDColors.ERROR  # 使用错误颜色高亮边框
+            )
+        )
+        v_layout = QtWidgets.QVBoxLayout(frame)
+        v_layout.setSpacing(12)
+        v_layout.setContentsMargins(12, 12, 12, 12)
+
+        name_s = get_transform_from_shape(s)
+        name_o = get_transform_from_shape(o.replace("Orig", ""))
+
+        lbl1 = MDClickableLabel(u"参考: {0}".format(get_name_without_namespace(name_s)), name_s, "error")
+        lbl2 = MDClickableLabel(u"绑定: {0}".format(get_name_without_namespace(name_o)), name_o, "success")
+        lbl1.doubleClicked.connect(self.select_node)
+        lbl2.doubleClicked.connect(self.select_node)
+
+        for l in (lbl1, lbl2):
+            v_layout.addWidget(l)
+
+        cards = QtWidgets.QHBoxLayout()
+        cards.setSpacing(8)
+        cards.addWidget(MDDataCard(u"参考点数", ref_count, color_type="error"))
+        cards.addWidget(MDDataCard(u"目标点数", tgt_count, color_type="error"))
+        v_layout.addLayout(cards)
+        return frame
+
+    # --- NEW WIDGET FUNCTION END ---
+
+    def _create_diff_widget( self, s, o, rate, min_diff, max_diff ):
         frame = QtWidgets.QFrame()
         frame.setStyleSheet(
             "QFrame {{ background-color:{0}; border:1px solid {1}; border-radius:8px; padding:8px; }}".format(
@@ -458,7 +498,7 @@ class CompareUI(QtWidgets.QDialog):
 
     # --- Selection helper --------------------------------------------------
 
-    def select_node(self, name):
+    def select_node( self, name ):
         if name and cmds.objExists(name):
             cmds.select(name, r=True)
             cmds.setFocus("viewPanes")
@@ -475,7 +515,7 @@ def launch_compare_ui():  # noqa: N802
     except (NameError, RuntimeError):
         pass
 
-    _compare_ui_window = CompareUI()  # pylint: disable=invalid-name
+    _compare_ui_window = CompareUI()
     _compare_ui_window.show()
 
 
