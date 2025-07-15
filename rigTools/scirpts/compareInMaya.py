@@ -85,18 +85,22 @@ def match_hierarchy_recursive( ref, tgt, lookup, out ):
 
     for r in refs:
         key = get_name_without_namespace(r)
-        if key in lookup:
+        if key in lookup  :
             t = lookup[key]
             matched.add(t)
             cmds.reorder(t, b=1)
-
             rs, ts = get_shape_node(r), get_shape_node(t)
             if rs and ts:
-                orig = ts + "Orig"
-                if cmds.objExists(orig):
-                    diff = compare_vertex_positions(rs, orig)
-                    if diff and (diff[0] is None or diff[0] > 0):
-                        out["Diff"].append((rs, orig, diff))
+                if ts.split('|')[-1] in rs.split('|')[-1]:
+                    matched.add(ts)
+                    orig = ts + "Orig"
+                    if cmds.objExists(orig):
+                        diff = compare_vertex_positions(rs, orig)
+                        if diff and (diff[0] is None or diff[0] > 0):
+                            out["Diff"].append((rs, orig, diff))
+                else:
+                    out["Ref"].append(rs.split('|')[-1])
+                    out["Tgt"].append(ts.split('|')[-1])
             match_hierarchy_recursive(r, t, lookup, out)
         else:
             out["Ref"].append(r)
@@ -460,7 +464,7 @@ class CompareUI(QtWidgets.QDialog):
         cards = QtWidgets.QHBoxLayout()
         cards.setSpacing(8)
         cards.addWidget(MDDataCard(u"参考点数", ref_count, color_type="error"))
-        cards.addWidget(MDDataCard(u"目标点数", tgt_count, color_type="error"))
+        cards.addWidget(MDDataCard(u"绑定点数", tgt_count, color_type="error"))
         v_layout.addLayout(cards)
         return frame
 
