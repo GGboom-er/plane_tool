@@ -63,30 +63,30 @@ calibrated.getGUIToRawInputIndices()
 
 calibrated.getGUIToRawOutputIndices()
 
-#»ñÈ¡ËùÓĞ¿ØÖÆÆ÷Ãû³Æ
+#è·å–æ‰€æœ‰æ§åˆ¶å™¨åç§°
 ctrlNameList = [calibrated.getGUIControlName(i) for i in range(calibrated.getGUIControlCount())]
 
 
-# »ñÈ¡dna½Úµã±í´ïÊ½×é
+# è·å–dnaèŠ‚ç‚¹è¡¨è¾¾å¼ç»„
 calibrated.getRawControlCount()
 
-# »ñÈ¡ËùÓĞ¹Ç÷À×é_Õû¸ö¹Ø½Ú¾ØÕóÖĞ´æÔÚµÄ¹Ø½Ú×éµÄÊıÁ¿
+# è·å–æ‰€æœ‰éª¨éª¼ç»„_æ•´ä¸ªå…³èŠ‚çŸ©é˜µä¸­å­˜åœ¨çš„å…³èŠ‚ç»„çš„æ•°é‡
 calibrated.getJointGroupCount()
-# »ñÈ¡¹Ç÷À×éÖĞµÄ¹Ç÷À
+# è·å–éª¨éª¼ç»„ä¸­çš„éª¨éª¼
 calibrated.getJointGroupJointIndices(77)
 
-# »ñÈ¡¹Ç÷ÀÃû³Æ
+# è·å–éª¨éª¼åç§°
 calibrated.getJointName(43)
-# »ñÈ¡¹Ç÷ÀbuildPose
+# è·å–éª¨éª¼buildPose
 calibrated.getNeutralJointTranslation(43)
 
-# ¿É»ñÈ¡Ã¿¸ö¹Ç÷À×éÔËÓÃµ½ÄÇĞ©±íÇé
+# å¯è·å–æ¯ä¸ªéª¨éª¼ç»„è¿ç”¨åˆ°é‚£äº›è¡¨æƒ…
 calibrated.getJointGroupInputIndices(77)
 
-# »ñÈ¡Ã¿¸ö¹Ç÷À×éÄÚ¹Ç÷À²ÎÓëÔËÓÃµÄÊôĞÔ
+# è·å–æ¯ä¸ªéª¨éª¼ç»„å†…éª¨éª¼å‚ä¸è¿ç”¨çš„å±æ€§
 calibrated.getJointGroupOutputIndices(77)
 
-# »ñÈ¡¹Ç÷À×éÏÂÃ¿¸ö¹Ç÷ÀÊôĞÔÔÚ¶ÔÓ¦±íÇéÏÂµÄÇı¶¯Öµ
+# è·å–éª¨éª¼ç»„ä¸‹æ¯ä¸ªéª¨éª¼å±æ€§åœ¨å¯¹åº”è¡¨æƒ…ä¸‹çš„é©±åŠ¨å€¼
 valueList = calibrated.getJointGroupValues(77)
 
 tr = [valueList[387], valueList[388], valueList[389], valueList[390], valueList[391], valueList[392]]
@@ -196,22 +196,12 @@ joint_attr_list = reader.getJointGroupOutputIndices(group_index)  # row
 value_table = reader.getJointGroupValues(group_index)
 
 num_rows = 6
-# Ã¿ÁĞµÄÁĞÊı£¬´Ó 0 ¿ªÊ¼¼ÆÊı£¬µÚ 5 ÁĞÊÇË÷Òı 4
+# æ¯åˆ—çš„åˆ—æ•°ï¼Œä» 0 å¼€å§‹è®¡æ•°ï¼Œç¬¬ 5 åˆ—æ˜¯ç´¢å¼• 4
 column_index = 119
-# ×ÜÁĞÊıÎª 10
+# æ€»åˆ—æ•°ä¸º 10
 num_columns = 291
 
-# ÌáÈ¡µÚ E ÁĞµÄÊı¾İ
+# æå–ç¬¬ E åˆ—çš„æ•°æ®
 column_e_data = [value_table[row * num_columns + column_index] for row in range(num_rows)]
 
 reader.getJointName(43)
-
-
-
-
-
-
-
-
-
-

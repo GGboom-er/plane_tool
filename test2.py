@@ -9,29 +9,29 @@ import maya.cmds as cmds
 import maya.OpenMaya as om
 
 # import time
-# # ¼ÇÂ¼¿ªÊ¼Ê±¼ä
+# # è®°å½•å¼€å§‹æ—¶é—´
 # start_time = time.time()
 
 class dna_edit_library():
     def __init__(self):
-        # °æ±¾ºÅ
+        # ç‰ˆæœ¬å·
         self.maya_version = cmds.about(version=True)
-        # µ±Ç°ÎÄ¼şÂ·¾¶
+        # å½“å‰æ–‡ä»¶è·¯å¾„
         self.file_path = os.path.join('/'.join(os.path.abspath(inspect.getsourcefile(lambda: 0)).split('\\')[:-1]))
 
         self.ROOT_DIR = self.file_path + '/custom_commands/MetaHuman-DNA-Calibration-main'
         self.MAYA_VERSION = self.maya_version  # 2022 or 2023
         self.ROOT_LIB_DIR = f"{self.ROOT_DIR}/lib/Maya{self.MAYA_VERSION}"
 
-        # ÕâÁ½¸öÂ·¾¶¸ö¿É×ÔĞĞĞŞ¸Ä£¬Èç¹ûÒª¸Ä³ÉÒ»ÑùµÄÇë×ÔĞĞ±¸·İ
-        # dnaÔ´Êı¾İÂ·¾¶
+        # è¿™ä¸¤ä¸ªè·¯å¾„ä¸ªå¯è‡ªè¡Œä¿®æ”¹ï¼Œå¦‚æœè¦æ”¹æˆä¸€æ ·çš„è¯·è‡ªè¡Œå¤‡ä»½
+        # dnaæºæ•°æ®è·¯å¾„
         self.soure_dna_path = f"{self.ROOT_DIR}/data/mh4/dna_files/Ada_modify.dna"
-        # ÖØĞÂÉú³ÉµÄdnaÂ·¾¶
+        # é‡æ–°ç”Ÿæˆçš„dnaè·¯å¾„
         self.target_dna_path = f"{self.ROOT_DIR}/data/mh4/dna_files/Ada_modify.dna"
 
         self.load_read_write()
 
-    # ÔØÈë¶ÁĞ´dna¿â
+    # è½½å…¥è¯»å†™dnaåº“
     def load_read_write(self):
         if self.maya_version == '2022' or self.maya_version == '2023':
             if platform == "win32":
@@ -43,139 +43,139 @@ class dna_edit_library():
                     "OS not supported, please compile dependencies and add value to LIB_DIR"
                 )
 
-            # ½«Ä¿Â¼Ìí¼Óµ½Â·¾¶
+            # å°†ç›®å½•æ·»åŠ åˆ°è·¯å¾„
             syspath.insert(0, self.ROOT_DIR)
             syspath.insert(0, LIB_DIR)
             from dna import DataLayer_All, FileStream, Status, BinaryStreamReader, BinaryStreamWriter
 
-            # Ìí¼Ó¶ÁÈ¡¿â
+            # æ·»åŠ è¯»å–åº“
             stream = FileStream(self.soure_dna_path, FileStream.AccessMode_Read, FileStream.OpenMode_Binary)
             self.reader = BinaryStreamReader(stream, DataLayer_All)
             self.reader.read()
 
-            # Ìí¼ÓĞ´Èë¿â
+            # æ·»åŠ å†™å…¥åº“
             stream = FileStream(self.target_dna_path, FileStream.AccessMode_Write, FileStream.OpenMode_Binary)
             self.writer = BinaryStreamWriter(stream)
             self.writer.setFrom(self.reader)
-            print('dnaÒÑ¿ÉÒÔ¶ÁÈ¡ÓëĞ´Èë¡£')
+            print('dnaå·²å¯ä»¥è¯»å–ä¸å†™å…¥ã€‚')
         else:
-            cmds.warning("Maya°æ±¾´íÎó,½öÖ§³Ö2022ºÍ2023°æ±¾£¬Èç³¢ÊÔÔÙ±ğµÄ°æ±¾Çë×ÔĞĞĞŞ¸Ä¡£")
+            cmds.warning("Mayaç‰ˆæœ¬é”™è¯¯,ä»…æ”¯æŒ2022å’Œ2023ç‰ˆæœ¬ï¼Œå¦‚å°è¯•å†åˆ«çš„ç‰ˆæœ¬è¯·è‡ªè¡Œä¿®æ”¹ã€‚")
 
-    # »ñÈ¡²¢·µ»Øµ±Ç°Ñ¡ÔñÄ£ĞÍ½á¹¹Êı¾İ
+    # è·å–å¹¶è¿”å›å½“å‰é€‰æ‹©æ¨¡å‹ç»“æ„æ•°æ®
     def get_mesh_structure(self):
         sel = cmds.ls(sl=1)
         shape = cmds.listRelatives(sel, c=1, type='mesh')
         if shape:
-            # Ñ¡ÔñĞÎ×´½Úµã
+            # é€‰æ‹©å½¢çŠ¶èŠ‚ç‚¹
             cmds.select(shape)
-            # ½¨Á¢MSelectionListÊı¾İ´æ·Åµ±Ç°Ñ¡ÔñÊı¾İ
+            # å»ºç«‹MSelectionListæ•°æ®å­˜æ”¾å½“å‰é€‰æ‹©æ•°æ®
             sel_list = om.MSelectionList()
-            # »ñÈ¡µ±Ç°Ñ¡Ôñ²¢Ìî³äµ½sel_listÖĞ
+            # è·å–å½“å‰é€‰æ‹©å¹¶å¡«å……åˆ°sel_listä¸­
             om.MGlobal.getActiveSelectionList(sel_list)
             result = [om.MObject()] * 1
             sel_list.getDependNode(0, result[0])
-            # ×¼±¸ÓÃdep_node_fnÀ´»ñÈ¡¸ü¶à¹ØÓÚ½ÚµãµÄĞÅÏ¢
+            # å‡†å¤‡ç”¨dep_node_fnæ¥è·å–æ›´å¤šå…³äºèŠ‚ç‚¹çš„ä¿¡æ¯
             dep_node_fn = om.MFnDependencyNode(result[0])
 
             # sel_name = dep_node_fn.name()
-            # print(dep_node_fn.name())  # ´òÓ¡½ÚµãÃû³Æ
+            # print(dep_node_fn.name())  # æ‰“å°èŠ‚ç‚¹åç§°
 
             # sel_type = dep_node_fn.typeName()
-            # print(dep_node_fn.typeName())  # ´òÓ¡½ÚµãÀàĞÍ
+            # print(dep_node_fn.typeName())  # æ‰“å°èŠ‚ç‚¹ç±»å‹
 
-            # ½ö»ñÈ¡Ñ¡ÔñÁĞ±íÖĞµÄµÚÒ»¸öÑ¡ÔñµÄÏîÄ¿µÄÊı¾İ
+            # ä»…è·å–é€‰æ‹©åˆ—è¡¨ä¸­çš„ç¬¬ä¸€ä¸ªé€‰æ‹©çš„é¡¹ç›®çš„æ•°æ®
 
-            # ÎªÑ¡ÖĞµÄ¶ÔÏó´´½¨Ò»¸öĞÂµÄMDagPathÊµÀı
+            # ä¸ºé€‰ä¸­çš„å¯¹è±¡åˆ›å»ºä¸€ä¸ªæ–°çš„MDagPathå®ä¾‹
             dag_path = [om.MDagPath()] * sel_list.length()
-            # ´ÓÑ¡ÔñÁĞ±íÖĞ»ñÈ¡µÚi¸ö±»Ñ¡¶ÔÏóµÄDAGÂ·¾¶
+            # ä»é€‰æ‹©åˆ—è¡¨ä¸­è·å–ç¬¬iä¸ªè¢«é€‰å¯¹è±¡çš„DAGè·¯å¾„
             sel_list.getDagPath(0, dag_path[0])
-            # »ñÈ¡½Úµã
+            # è·å–èŠ‚ç‚¹
             node = dag_path[0].node()
 
-            # ¼ì²é½ÚµãÊÇ·ñÎªÍø¸ñ
+            # æ£€æŸ¥èŠ‚ç‚¹æ˜¯å¦ä¸ºç½‘æ ¼
             # node.hasFn(om.MFn.kMesh)
 
-            # Èç¹ûÊÇÍø¸ñ£¬Ôò´´½¨MFnMesh¶ÔÏóÒÔ·ÃÎÊÍø¸ñÊı¾İ
+            # å¦‚æœæ˜¯ç½‘æ ¼ï¼Œåˆ™åˆ›å»ºMFnMeshå¯¹è±¡ä»¥è®¿é—®ç½‘æ ¼æ•°æ®
             mesh_fn = om.MFnMesh(node)
-            # »ñÈ¡Íø¸ñµÄ¶¥µãÊı
+            # è·å–ç½‘æ ¼çš„é¡¶ç‚¹æ•°
             num_verts = mesh_fn.numVertices()
-            # »ñÈ¡Íø¸ñµÄÃæÊı
+            # è·å–ç½‘æ ¼çš„é¢æ•°
             num_faces = mesh_fn.numPolygons()
             # print(f"Mesh has {num_verts} vertices and {num_faces} faces.")
 
-            # ´´½¨Ò»¸öÁĞ±íÀ´´æ´¢¶¥µãÎ»ÖÃ
+            # åˆ›å»ºä¸€ä¸ªåˆ—è¡¨æ¥å­˜å‚¨é¡¶ç‚¹ä½ç½®
             vertex_positions = []
-            # ±éÀúËùÓĞ¶¥µã²¢»ñÈ¡ËüÃÇµÄÎ»ÖÃ
+            # éå†æ‰€æœ‰é¡¶ç‚¹å¹¶è·å–å®ƒä»¬çš„ä½ç½®
             for i in range(num_verts):
                 point = om.MPoint()
                 mesh_fn.getPoint(i, point)
                 vertex_positions.append([point.x, point.y, point.z])
 
-            # »ñÈ¡¶¥·¨ÏßÊı×é
+            # è·å–é¡¶æ³•çº¿æ•°ç»„
             normals = om.MFloatVectorArray()
             mesh_fn.getVertexNormals(False, normals)
-            # »ñÈ¡¶¥µã·¨ÏßÊıÖµÊı×é
+            # è·å–é¡¶ç‚¹æ³•çº¿æ•°å€¼æ•°ç»„
             vertex_normals = []
             for i in range(num_verts):
                 normal_vec = normals[i]
                 vertex_normals.append([normal_vec.x, normal_vec.y, normal_vec.z])
 
-            # »ñÈ¡uv¼¯
+            # è·å–uvé›†
             uv_set = []
             mesh_fn.getUVSetNames(uv_set)
 
-            # ´´½¨Ò»¸öMFloatArrayÀ´´æ´¢UV×ø±ê
+            # åˆ›å»ºä¸€ä¸ªMFloatArrayæ¥å­˜å‚¨UVåæ ‡
             uv_coords_us = om.MFloatArray()
             uv_coords_vs = om.MFloatArray()
-            # µ÷ÓÃgetUVs·½·¨£¬´«ÈëUV¼¯ºÏÃû³ÆºÍMFloatArrayµÄÒıÓÃ
+            # è°ƒç”¨getUVsæ–¹æ³•ï¼Œä¼ å…¥UVé›†åˆåç§°å’ŒMFloatArrayçš„å¼•ç”¨
             mesh_fn.getUVs(uv_coords_us, uv_coords_vs, uv_set[0])
 
-            # ±éÀúÃæ²¢½¨Á¢
+            # éå†é¢å¹¶å»ºç«‹
             all_topology = []
             for i in range(num_faces):
-                # °´Ãæ»ñÈ¡ÍØÆË
+                # æŒ‰é¢è·å–æ‹“æ‰‘
                 topology = cmds.polyListComponentConversion(sel[0]+'.f[' + str(i) + ']', tvf=True)
                 topology = cmds.ls(topology, fl=1)
                 all_uv_num = []
                 for j in range(len(topology)):
-                    # °´ÍØÆË»ñÈ¡uv
+                    # æŒ‰æ‹“æ‰‘è·å–uv
                     uv = cmds.polyListComponentConversion(topology[j], tuv=True)
                     uv = cmds.ls(uv, fl=1)
                     num = int(uv[0].split('[')[1][:-1])
                     all_uv_num.append(num)
                 all_topology.append(all_uv_num)
 
-            # ÖØĞÂÑ¡Ôñ»Øµ±Ç°Ñ¡Ôñ
+            # é‡æ–°é€‰æ‹©å›å½“å‰é€‰æ‹©
             cmds.select(sel)
-            print('ÒÑ»ñÈ¡µ±Ç°Ñ¡ÔñÄ£ĞÍ½á¹¹Êı¾İ¡£')
-            # ·µ»Øµ±Ç°Ñ¡ÔñµÄÃû³Æ¡¢µãÊı×é¡¢¶¥µã·¨ÏßÊı×é¡¢ÍØÆËÊı×é¡¢UVµÄuÖµ£¬¡¢UVµÄvÖµ
+            print('å·²è·å–å½“å‰é€‰æ‹©æ¨¡å‹ç»“æ„æ•°æ®ã€‚')
+            # è¿”å›å½“å‰é€‰æ‹©çš„åç§°ã€ç‚¹æ•°ç»„ã€é¡¶ç‚¹æ³•çº¿æ•°ç»„ã€æ‹“æ‰‘æ•°ç»„ã€UVçš„uå€¼ï¼Œã€UVçš„vå€¼
             return sel[0], vertex_positions, vertex_normals, all_topology, uv_coords_us, uv_coords_vs
         else:
-            cmds.warning('ÇëÑ¡ÔñÒ»¸öÍø¸ñ¶ÔÏó¡£')
+            cmds.warning('è¯·é€‰æ‹©ä¸€ä¸ªç½‘æ ¼å¯¹è±¡ã€‚')
 
-    # ½«Ä£ĞÍ½á¹¹Êı¾İ×ª»»³ÉdnaËùĞèµÄÊı¾İ
+    # å°†æ¨¡å‹ç»“æ„æ•°æ®è½¬æ¢æˆdnaæ‰€éœ€çš„æ•°æ®
     def data_required_for_conversion_into_dna(self, mesh_indices, name, vertex_positions, vertex_normals, all_topology, uv_coords_us, uv_coords_vs):
         '''getMeshName = self.reader.getMeshName(mesh_indices)
         print('getMeshName:' + str(getMeshName))'''
-        # print('¶ÔÏóÃû³Æ£º',name)
+        # print('å¯¹è±¡åç§°ï¼š',name)
 
         '''getVertexPositionCount = self.reader.getVertexPositionCount(mesh_indices)
         print('getVertexPositionCount:' + str(getVertexPositionCount))
         getVertexPosition = self.reader.getVertexPosition(mesh_indices, 0)
         print('getVertexPosition:' + str(getVertexPosition))'''
-        # print('Ä£ĞÍµãÊıÖµ£º',len(vertex_positions),vertex_positions)
+        # print('æ¨¡å‹ç‚¹æ•°å€¼ï¼š',len(vertex_positions),vertex_positions)
 
         '''getVertexNormalCount = self.reader.getVertexNormalCount(mesh_indices)
         print('getVertexNormalCount:' + str(getVertexNormalCount))
         getVertexNormal = self.reader.getVertexNormal(mesh_indices, 0)
         print('getVertexNormal:' + str(getVertexNormal))'''
-        # print('¶¥µã·¨ÏßÊıÖµ£º',len(vertex_normals),vertex_normals)
+        # print('é¡¶ç‚¹æ³•çº¿æ•°å€¼ï¼š',len(vertex_normals),vertex_normals)
 
         '''getFaceCount = self.reader.getFaceCount(0)
         print('getFaceCount:' + str(getFaceCount))
         getFaceVertexLayoutIndices = self.reader.getFaceVertexLayoutIndices(mesh_indices, 0)
         print('getFaceVertexLayoutIndices:' + str(getFaceVertexLayoutIndices))'''
-        # print('ÍØÆË£¨Ãæ£©Êı¾İ£º', len(all_topology), all_topology)
+        # print('æ‹“æ‰‘ï¼ˆé¢ï¼‰æ•°æ®ï¼š', len(all_topology), all_topology)
 
         '''getVertexTextureCoordinateCount = self.reader.getVertexTextureCoordinateCount(mesh_indices)
         print('getVertexTextureCoordinateCount:' + str(getVertexTextureCoordinateCount))
@@ -183,20 +183,20 @@ class dna_edit_library():
         print('getVertexTextureCoordinate:' + str(getVertexTextureCoordinate))
         getVertexTextureCoordinateUs = self.reader.getVertexTextureCoordinateUs(mesh_indices)
         print('getVertexTextureCoordinateUs:' + str(len(getVertexTextureCoordinateUs)) + str(getVertexTextureCoordinateUs))'''
-        # print('UVµÄuÖµ£º',len(uv_coords_us),uv_coords_us)
+        # print('UVçš„uå€¼ï¼š',len(uv_coords_us),uv_coords_us)
 
         '''getVertexTextureCoordinateVs = self.reader.getVertexTextureCoordinateVs(mesh_indices)
         print('getVertexTextureCoordinateVs:' + str(len(getVertexTextureCoordinateVs)) + str(getVertexTextureCoordinateVs))'''
-        # print('UVµÄvÖµ£º', len(uv_coords_vs), uv_coords_vs)
+        # print('UVçš„vå€¼ï¼š', len(uv_coords_vs), uv_coords_vs)
 
         '''getVertexLayoutCount = self.reader.getVertexLayoutCount(0)
         print('getVertexLayoutCount:' + str(getVertexLayoutCount))'''
 
-        # ¿ªÊ¼¹¹½¨[µãÖ¸Õë,uvÖ¸Õë,µã·¨ÏßÖ¸Õë]Êı×é
+        # å¼€å§‹æ„å»º[ç‚¹æŒ‡é’ˆ,uvæŒ‡é’ˆ,ç‚¹æ³•çº¿æŒ‡é’ˆ]æ•°ç»„
         '''
-        ´Ë´¦¶îÍâËµÃ÷£º
-            Èç¹ûÄæ´òÓ¡Ä£°åÎÄ¼şµÄ»á·¢ÏÖºÜÂÒ£¬µ«ÊÇ¾­¹ıÎÒ´óÁ¿²âÊÔÊÇ¿ÉÒÔ°´Ë³ĞòÅÅÁĞµÄ£¬´¿´âÊÇÄ£°åµÄÄ£ĞÍ½á¹¹Êı¾İ´æ·Å»ìÂÒµ¼ÖÂµÄ£¬Ó¦¸ÃÊÇ»ñÈ¡µÄÊ±ºò²»ÊÇÕıÏò»ñ
-            È¡µÄ£¬µ¼ÖÂÖ¸ÕëÒ²ÂÒÆß°ËÔãµÄ£¬ÎÒÉõÖÁ»³ÒÉ¹æÂÉ´æÔÚÎóµ¼µÄÇé¿ö£¬×ÜÖ®ÒªÊÇÄãÒª´Ó¹Ù·½µÄÊı¾İ¿ªÊ¼²éµÄ»°Òª×öºÃÍ·´óµÄ×¼±¸¡£
+        æ­¤å¤„é¢å¤–è¯´æ˜ï¼š
+            å¦‚æœé€†æ‰“å°æ¨¡æ¿æ–‡ä»¶çš„ä¼šå‘ç°å¾ˆä¹±ï¼Œä½†æ˜¯ç»è¿‡æˆ‘å¤§é‡æµ‹è¯•æ˜¯å¯ä»¥æŒ‰é¡ºåºæ’åˆ—çš„ï¼Œçº¯ç²¹æ˜¯æ¨¡æ¿çš„æ¨¡å‹ç»“æ„æ•°æ®å­˜æ”¾æ··ä¹±å¯¼è‡´çš„ï¼Œåº”è¯¥æ˜¯è·å–çš„æ—¶å€™ä¸æ˜¯æ­£å‘è·
+            å–çš„ï¼Œå¯¼è‡´æŒ‡é’ˆä¹Ÿä¹±ä¸ƒå…«ç³Ÿçš„ï¼Œæˆ‘ç”šè‡³æ€€ç–‘è§„å¾‹å­˜åœ¨è¯¯å¯¼çš„æƒ…å†µï¼Œæ€»ä¹‹è¦æ˜¯ä½ è¦ä»å®˜æ–¹çš„æ•°æ®å¼€å§‹æŸ¥çš„è¯è¦åšå¥½å¤´å¤§çš„å‡†å¤‡ã€‚
         '''
         p_uv_nor_layout = []
         for i in range(len(uv_coords_us)):
@@ -205,44 +205,44 @@ class dna_edit_library():
             num = int(point[0].split('[')[1][:-1])
             layout = [num, i, num]
             p_uv_nor_layout.append(layout)
-        # print('[µãÖ¸Õë£¬uvÖ¸Õë£¬µã·¨ÏßÖ¸Õë]Êı×é£º',len(p_uv_nor_layout), p_uv_nor_layout)
+        # print('[ç‚¹æŒ‡é’ˆï¼ŒuvæŒ‡é’ˆï¼Œç‚¹æ³•çº¿æŒ‡é’ˆ]æ•°ç»„ï¼š',len(p_uv_nor_layout), p_uv_nor_layout)
 
-        # ´´½¨uvÊıÖµÊı×é
+        # åˆ›å»ºuvæ•°å€¼æ•°ç»„
         uv = []
         for i in range(len(uv_coords_us)):
             point = [uv_coords_us[i], uv_coords_vs[i]]
             uv.append(point)
-        # print('uvÊıÖµÊı×é£º', len(uv), uv)
+        # print('uvæ•°å€¼æ•°ç»„ï¼š', len(uv), uv)
 
-        print('ÒÑ¾­×ª»¯³É±à¼­dnaËùĞèÊı¾İ¡£')
-        # ·µ»ØÄ£ĞÍÖ¸Õë£¬µãÊı×é£¬µã·¨ÏßÊı×é£¬ÍØÆË£¬uvÊı×é£¬[µãÖ¸Õë,uvÖ¸Õë,µã·¨ÏßÖ¸Õë]Êı×é
+        print('å·²ç»è½¬åŒ–æˆç¼–è¾‘dnaæ‰€éœ€æ•°æ®ã€‚')
+        # è¿”å›æ¨¡å‹æŒ‡é’ˆï¼Œç‚¹æ•°ç»„ï¼Œç‚¹æ³•çº¿æ•°ç»„ï¼Œæ‹“æ‰‘ï¼Œuvæ•°ç»„ï¼Œ[ç‚¹æŒ‡é’ˆ,uvæŒ‡é’ˆ,ç‚¹æ³•çº¿æŒ‡é’ˆ]æ•°ç»„
         return mesh_indices, vertex_positions, vertex_normals, all_topology, uv, p_uv_nor_layout
 
-    # ĞŞ¸ÄµãÎ»ÖÃ¡¢·¨Ïß¡¢UV×ø±ê
+    # ä¿®æ”¹ç‚¹ä½ç½®ã€æ³•çº¿ã€UVåæ ‡
     def set_point_positions(self, mesh_indices, vertex_positions, vertex_normals, uv, p_uv_nor_layout):
-        # ÉèÖÃµãÎ»ÖÃ
+        # è®¾ç½®ç‚¹ä½ç½®
         self.writer.setVertexPositions(mesh_indices, vertex_positions)
-        # ÉèÖÃµã·¨Ïß
+        # è®¾ç½®ç‚¹æ³•çº¿
         self.writer.setVertexNormals(mesh_indices, vertex_normals)
-        # ÉèÖÃµãUVÎ»ÖÃ
+        # è®¾ç½®ç‚¹UVä½ç½®
         self.writer.setVertexTextureCoordinates(mesh_indices, uv)
-        # ÉèÖÃ[µãÖ¸Õë,uvÖ¸Õë,µã·¨ÏßÖ¸Õë]Êı×é
+        # è®¾ç½®[ç‚¹æŒ‡é’ˆ,uvæŒ‡é’ˆ,ç‚¹æ³•çº¿æŒ‡é’ˆ]æ•°ç»„
         self.writer.setVertexLayouts(mesh_indices, p_uv_nor_layout)
-        print(mesh_indices, 'Ä£ĞÍµãÎ»ÖÃ¡¢·¨Ïß¡¢UV×ø±êÒÔ¸üĞÂ¡£')
+        print(mesh_indices, 'æ¨¡å‹ç‚¹ä½ç½®ã€æ³•çº¿ã€UVåæ ‡ä»¥æ›´æ–°ã€‚')
 
-    # ÉèÖÃÍØÆË
+    # è®¾ç½®æ‹“æ‰‘
     def set_topology(self, mesh_indices, all_topology):
-        # ÇåÀíÍØÆË£¨Ãæ£©
+        # æ¸…ç†æ‹“æ‰‘ï¼ˆé¢ï¼‰
         self.writer.clearFaceVertexLayoutIndices(mesh_indices)
-        # ÉèÖÃÍØÆË£¨Ãæ£©
+        # è®¾ç½®æ‹“æ‰‘ï¼ˆé¢ï¼‰
         for faceIndex in range(len(all_topology)):
             layoutIndices = all_topology[faceIndex]
             self.writer.setFaceVertexLayoutIndices(mesh_indices, faceIndex, layoutIndices)
-        print(mesh_indices, 'µ±Ç°Ö¸ÕëÍØÆËÒÑ¸üĞÂ¡£')
+        print(mesh_indices, 'å½“å‰æŒ‡é’ˆæ‹“æ‰‘å·²æ›´æ–°ã€‚')
 
-    # ÖØÖÃbs
+    # é‡ç½®bs
     def reset_blendshape(self, mesh_indices):
-        # »ñÈ¡bsÊıÁ¿£¬bsÊıÄ¿ºÍÃû³ÆÉ¶µÄ²»¸Ä×îºÃ£¬bsÒ²±ğÉ¾Ëü£¬²»ÓÃµÄ±ä»¯ÊıÖµÇåÁã¾ÍºÃ
+        # è·å–bsæ•°é‡ï¼Œbsæ•°ç›®å’Œåç§°å•¥çš„ä¸æ”¹æœ€å¥½ï¼Œbsä¹Ÿåˆ«åˆ å®ƒï¼Œä¸ç”¨çš„å˜åŒ–æ•°å€¼æ¸…é›¶å°±å¥½
         getBlendShapeTargetCount = self.reader.getBlendShapeTargetCount(mesh_indices)
         # print('getBlendShapeTargetCount:' + str(getBlendShapeTargetCount))
         # getBlendShapeChannelIndex = self.reader.getBlendShapeChannelIndex(mesh_indices, 0)
@@ -258,52 +258,52 @@ class dna_edit_library():
             # writer.setBlendShapeChannelIndex(mesh_indices, blendShapeTargetIndex, blendShapeChannelIndex)
             self.writer.setBlendShapeTargetDeltas(mesh_indices, i, [])
             self.writer.setBlendShapeTargetVertexIndices(mesh_indices, i, [])
-        print(mesh_indices,'ËùÓĞbsÆ«ÒÆÊıÖµÒÑ¾­ÖØÖÃ¡£')
+        print(mesh_indices,'æ‰€æœ‰bsåç§»æ•°å€¼å·²ç»é‡ç½®ã€‚')
 
-    # ÖØÖÃ¹Ç÷ÀÈ¨ÖØ
+    # é‡ç½®éª¨éª¼æƒé‡
     def reset_joint_weight(self,mesh_indices):
-        # »ñÈ¡Ä£ĞÍµãÊıÁ¿
+        # è·å–æ¨¡å‹ç‚¹æ•°é‡
         getSkinWeightsCount = self.reader.getSkinWeightsCount(mesh_indices)
         # print('getSkinWeightsCount:' + str(getSkinWeightsCount))
         for j in range(getSkinWeightsCount):
             self.writer.setSkinWeightsJointIndices(mesh_indices, j, [0])
             self.writer.setSkinWeightsValues(mesh_indices, j, [1])
-        print('¹Ç÷ÀÈ¨ÖØÒÑ¾­ÖØÖÃ¡£')
+        print('éª¨éª¼æƒé‡å·²ç»é‡ç½®ã€‚')
 
-    # ±à¼­¹Ç÷ÀÈ¨ÖØ
+    # ç¼–è¾‘éª¨éª¼æƒé‡
     def edit_joint_weight(self, mesh_indices):
-        # »ñÈ¡Ä£ĞÍÊıÁ¿
+        # è·å–æ¨¡å‹æ•°é‡
         # getMeshCount = self.reader.getMeshCount()
         # print('getMeshCount:' + str(getMeshCount))
-        # »ñÈ¡¹Ç÷ÀÊıÁ¿
+        # è·å–éª¨éª¼æ•°é‡
         getJointCount = self.reader.getJointCount()
         # print('getJointCount:' + str(getJointCount))
-        # ¶ÔÃ¿¸öÄ£ĞÍÖğ¸ö¿ªÊ¼ĞŞ¸Ä
-        # »ñÈ¡Ä£ĞÍÃû³Æ
+        # å¯¹æ¯ä¸ªæ¨¡å‹é€ä¸ªå¼€å§‹ä¿®æ”¹
+        # è·å–æ¨¡å‹åç§°
         getMeshName = self.reader.getMeshName(mesh_indices)
         print('getMeshName:' + str(getMeshName))
-        # »ñÈ¡ÃÉÆ¤½Úµã
+        # è·å–è’™çš®èŠ‚ç‚¹
         history = cmds.listHistory(getMeshName)
         skinClusterName = ''
         for node in history:
             if cmds.nodeType(node) == 'skinCluster':
                 skinClusterName = node
                 break
-        # ÒÆ³ı¶àÓàÓ°Ïì
+        # ç§»é™¤å¤šä½™å½±å“
         cmds.RemoveUnusedInfluences(skinClusterName)
-        # »ñÈ¡ÊÜÓ°ÏìµÄ¹Ç÷À
+        # è·å–å—å½±å“çš„éª¨éª¼
         source_skin_joint = cmds.skinCluster(getMeshName, q=1, inf=1)
         # print(len(source_skin_joint), source_skin_joint)
-        # »ñÈ¡Ä£ĞÍµãÊıÁ¿
+        # è·å–æ¨¡å‹ç‚¹æ•°é‡
         # getSkinWeightsCount = self.reader.getSkinWeightsCount(mesh_indices)
         # print('getSkinWeightsCount:' + str(getSkinWeightsCount))
-        # »ñÈ¡Ä£ĞÍµãÁĞ±í
+        # è·å–æ¨¡å‹ç‚¹åˆ—è¡¨
         mesh_visit_list = cmds.ls(getMeshName + '.vtx[*]', fl=1)
         # print(len(mesh_visit_list), mesh_visit_list)
-        # °´µã»ñÈ¡È¨ÖØ´´½¨ĞŞ¸ÄÁĞ±í
+        # æŒ‰ç‚¹è·å–æƒé‡åˆ›å»ºä¿®æ”¹åˆ—è¡¨
         clearSkinWeights = self.writer.clearSkinWeights(mesh_indices)
         # print('clearSkinWeights:' + str(clearSkinWeights))
-        # »ñÈ¡ÆäÓ°ÏìµÄ¹Ç÷ÀÔÚËùÓĞ¹Ç÷ÀÖĞµÄÖ¸ÕëÎ»ÖÃ
+        # è·å–å…¶å½±å“çš„éª¨éª¼åœ¨æ‰€æœ‰éª¨éª¼ä¸­çš„æŒ‡é’ˆä½ç½®
         joint_index_list = []
         for k in range(getJointCount):
             getJointName = self.reader.getJointName(k)
@@ -311,52 +311,52 @@ class dna_edit_library():
                 if source_skin_joint[l] == getJointName:
                     joint_index_list.append(k)
         # print(len(joint_index_list), joint_index_list)
-        # ¿ªÊ¼Öğ¸öµãĞŞ¸Ä
+        # å¼€å§‹é€ä¸ªç‚¹ä¿®æ”¹
         for j in range(len(mesh_visit_list)):
             weight_list = []
             joint_list = []
-            # »ñÈ¡Ã¿¸ö¹Ç÷ÀÔÚÄ³¸öµãµÄÈ¨ÖØÊıÖµ
+            # è·å–æ¯ä¸ªéª¨éª¼åœ¨æŸä¸ªç‚¹çš„æƒé‡æ•°å€¼
             weight = cmds.skinPercent(skinClusterName, mesh_visit_list[j], q=True, v=True)
-            # ½«ÓĞÊıÖµµÄ¹Ç÷ÀºÍÆäÊıÖµ¼ÓÔØµ½ĞÂÁĞ±í
+            # å°†æœ‰æ•°å€¼çš„éª¨éª¼å’Œå…¶æ•°å€¼åŠ è½½åˆ°æ–°åˆ—è¡¨
             for w in range(len(weight)):
                 if weight[w] > 0:
                     joint_list.append(joint_index_list[w])
                     weight_list.append(weight[w])
             self.writer.setSkinWeightsJointIndices(mesh_indices, j, joint_list)
             self.writer.setSkinWeightsValues(mesh_indices, j, weight_list)
-        print('ËùÓĞ¹Ç÷ÀÈ¨ÖØ¶¼ÒÑ¸üĞÂ¡£')
+        print('æ‰€æœ‰éª¨éª¼æƒé‡éƒ½å·²æ›´æ–°ã€‚')
 
-    # ±à¼­¹Ç÷ÀÎ»ÖÃ
+    # ç¼–è¾‘éª¨éª¼ä½ç½®
     def edit_joint_tr(self):
         getJointCount = self.reader.getJointCount()
         # print('getJointCount:' + str(getJointCount))
         need_write_translate_list = []
         need_write_rotate_list = []
         for i in range(getJointCount):
-            # »ñÈ¡¹Ç÷ÀÃû³Æ
+            # è·å–éª¨éª¼åç§°
             getJointName = self.reader.getJointName(i)
             # print('getJointName:' + str(getJointName))
-            # »ñÈ¡Î»ÒÆÊıÖµ
+            # è·å–ä½ç§»æ•°å€¼
             translate = cmds.xform(getJointName, q=True, t=True)
             # print(translate)
-            # »ñÈ¡Ğı×ªÊıÖµ
+            # è·å–æ—‹è½¬æ•°å€¼
             rotate = cmds.xform(getJointName, q=True, ro=True)
             # print(rotate)
-            # »ñÈ¡ÒÑÓĞµÄĞı×ªÊıÖµ
+            # è·å–å·²æœ‰çš„æ—‹è½¬æ•°å€¼
             getNeutralJointRotation = self.reader.getNeutralJointRotation(i)
             # print('getJointName:' + str(getNeutralJointRotation))
-            # ÖØ×éÎ»ÒÆÊıÖµÁĞ±í
+            # é‡ç»„ä½ç§»æ•°å€¼åˆ—è¡¨
             need_write_translate_list.append(translate)
-            # ÖØ¼ÆËã²¢×éºÏĞı×ªÊıÖµÁĞ±í
+            # é‡è®¡ç®—å¹¶ç»„åˆæ—‹è½¬æ•°å€¼åˆ—è¡¨
             for j in range(0, len(getNeutralJointRotation)):
                 getNeutralJointRotation[j] = getNeutralJointRotation[j] + rotate[j]
             need_write_rotate_list.append(getNeutralJointRotation)
 
         self.writer.setNeutralJointTranslations(need_write_translate_list)
         self.writer.setNeutralJointRotations(need_write_rotate_list)
-        print('ËùÓĞ¹Ç÷ÀÎ»ÖÃ¶¼ÒÑ¾­¸üĞÂ¡£')
+        print('æ‰€æœ‰éª¨éª¼ä½ç½®éƒ½å·²ç»æ›´æ–°ã€‚')
 
-    # ½«µ±Ç°Ñ¡ÔñÄ£ĞÍĞ´Èë³Ébs
+    # å°†å½“å‰é€‰æ‹©æ¨¡å‹å†™å…¥æˆbs
     def write_sel_model_to_bs(self,mesh_indices,bs_index,vertex_positions,sel_mesh):
         # getBlendShapeTargetCount = self.reader.getBlendShapeTargetCount(mesh_indices)
         # print('getBlendShapeTargetCount:' + str(getBlendShapeTargetCount))
@@ -368,14 +368,14 @@ class dna_edit_library():
         # print('getBlendShapeTargetDelta:' + str(getBlendShapeTargetDelta))
         vtx = cmds.ls(sel_mesh+'.vtx[*]',fl=1)
         new_vertex_positions = []
-        # ±éÀúËùÓĞ¶¥µã
+        # éå†æ‰€æœ‰é¡¶ç‚¹
         for i in range(len(vtx)):
-            # »ñÈ¡¶¥µãµÄÊÀ½çÎ»ÖÃ
+            # è·å–é¡¶ç‚¹çš„ä¸–ç•Œä½ç½®
             pos = cmds.xform(vtx[i],q=True, ws=True, t=True)
 
-            # ½«Î»ÖÃÌí¼Óµ½ÁĞ±íÖĞ
+            # å°†ä½ç½®æ·»åŠ åˆ°åˆ—è¡¨ä¸­
             new_vertex_positions.append(pos)
-            # ¼ÆËã³öÒ»¸öÆ«ÒÆÊı×é
+            # è®¡ç®—å‡ºä¸€ä¸ªåç§»æ•°ç»„
         offset_vertices = []
         offset_array = []
         for i in range(len(vertex_positions)):
@@ -388,35 +388,35 @@ class dna_edit_library():
                 offset_array.append(xyz)
         self.writer.setBlendShapeTargetDeltas(mesh_indices, bs_index, offset_array)
         self.writer.setBlendShapeTargetVertexIndices(mesh_indices, bs_index, offset_vertices)
-        print(mesh_indices, bs_index, 'ÒÑĞŞ¸Äµ±Ç°Ö¸ÕëÎ»ÖÃµÄbs¡£')
+        print(mesh_indices, bs_index, 'å·²ä¿®æ”¹å½“å‰æŒ‡é’ˆä½ç½®çš„bsã€‚')
 
-    # ¼ÓÔØµ±Ç°Ö¸Õë±íÇéÇı¶¯£¬²¢ÇÒ·µ»ØÇı¶¯Êı¾İ
+    # åŠ è½½å½“å‰æŒ‡é’ˆè¡¨æƒ…é©±åŠ¨ï¼Œå¹¶ä¸”è¿”å›é©±åŠ¨æ•°æ®
     def load_edit_drver_date(self, base_face):
         all_date = []
-        getJointGroupCount = self.reader.getJointGroupCount()  # »ñÈ¡¹Ç÷À×éÖ¸Êı
-        # print('¹Ç÷À×éÊıÁ¿:' + str(getJointGroupCount))
+        getJointGroupCount = self.reader.getJointGroupCount()  # è·å–éª¨éª¼ç»„æŒ‡æ•°
+        # print('éª¨éª¼ç»„æ•°é‡:' + str(getJointGroupCount))
         getRawControlName = self.reader.getRawControlName(base_face)
-        print('ĞèÒªĞŞ¸ÄµÄ³õÊ¼±íÇé£º' + str(base_face))
-        print('»ù´¡±íÇéÃû³Æ:' + str(getRawControlName))
-        # ²éÑ¯ËùÓĞ×éÖĞÊÇ·ñÓĞÒªĞŞ¸ÄµÄÖ÷±íÇé
+        print('éœ€è¦ä¿®æ”¹çš„åˆå§‹è¡¨æƒ…ï¼š' + str(base_face))
+        print('åŸºç¡€è¡¨æƒ…åç§°:' + str(getRawControlName))
+        # æŸ¥è¯¢æ‰€æœ‰ç»„ä¸­æ˜¯å¦æœ‰è¦ä¿®æ”¹çš„ä¸»è¡¨æƒ…
         # max = 0
         for j in range(0, getJointGroupCount):  #
-            getJointGroupInputIndices = self.reader.getJointGroupInputIndices(j)  # »ñÈ¡¹Ç÷À×éËù¹ØÁªµÄÎ¢±íÇé
+            getJointGroupInputIndices = self.reader.getJointGroupInputIndices(j)  # è·å–éª¨éª¼ç»„æ‰€å…³è”çš„å¾®è¡¨æƒ…
             # print('getJointGroupInputIndices:' + str(len(getJointGroupInputIndices)) + str(getJointGroupInputIndices))
             joint_group = []
             base_face_in_joint_group_indices = 0
             for i in range(0, len(getJointGroupInputIndices)):
                 if getJointGroupInputIndices[i] == base_face:
-                    joint_group = j  # ¹Ç÷À×é
-                    base_face_in_joint_group_indices = i  # ĞèÒªĞŞ¸ÄµÄ»ù´¡±íÇéÔÚÊôĞÔÁĞ±íËùº¬Êı¾İµÄÎ»ÖÃ
+                    joint_group = j  # éª¨éª¼ç»„
+                    base_face_in_joint_group_indices = i  # éœ€è¦ä¿®æ”¹çš„åŸºç¡€è¡¨æƒ…åœ¨å±æ€§åˆ—è¡¨æ‰€å«æ•°æ®çš„ä½ç½®
                     break
-            if joint_group:  # Èç¹û¹Ç÷À×é´æÔÚÔò´´½¨¹Ç÷À×éºÍ¹Ç÷À×Öµä
+            if joint_group:  # å¦‚æœéª¨éª¼ç»„å­˜åœ¨åˆ™åˆ›å»ºéª¨éª¼ç»„å’Œéª¨éª¼å­—å…¸
                 group_with_values = []
-                getJointGroupOutputIndices = self.reader.getJointGroupOutputIndices(j)  # »ñÈ¡¹Ç÷À×éËù¹ØÁªµÄÊôĞÔ
+                getJointGroupOutputIndices = self.reader.getJointGroupOutputIndices(j)  # è·å–éª¨éª¼ç»„æ‰€å…³è”çš„å±æ€§
                 # print('getJointGroupOutputIndices:' + str(len(getJointGroupOutputIndices)) + str(getJointGroupOutputIndices))
-                # °´ÊôĞÔÊıÁ¿²ğ½âÖµµ½ĞÂÁĞ±í
+                # æŒ‰å±æ€§æ•°é‡æ‹†è§£å€¼åˆ°æ–°åˆ—è¡¨
                 joint_value = []
-                getJointGroupValues = self.reader.getJointGroupValues(j)  # »ñÈ¡¹Ç÷À×éËù¹ØÁªµÄÎ¢±íÇéËùº¬µÄÊôĞÔÖµ
+                getJointGroupValues = self.reader.getJointGroupValues(j)  # è·å–éª¨éª¼ç»„æ‰€å…³è”çš„å¾®è¡¨æƒ…æ‰€å«çš„å±æ€§å€¼
                 # print('getJointGroupValues:' + str(len(getJointGroupValues)) + str(getJointGroupValues))
                 for x in range(0, len(getJointGroupOutputIndices)):
                     ls_list = []
@@ -424,41 +424,41 @@ class dna_edit_library():
                         ls_list.append(getJointGroupValues[len(getJointGroupInputIndices) * x + k])
                     joint_value.append(ls_list)
                 # print(joint_value)
-                # ½¨Á¢ĞŞ¸ÄÁĞ±í
+                # å»ºç«‹ä¿®æ”¹åˆ—è¡¨
                 ls_list = [joint_group, joint_value, base_face_in_joint_group_indices]
                 group_with_values.append(ls_list)
                 all_date.append(group_with_values)
-        print('±íÇéÊı¾İ¼ÓÔØÍê±Ï')
+        print('è¡¨æƒ…æ•°æ®åŠ è½½å®Œæ¯•')
         return all_date
 
-    # Ğ´Èë±íÇéÇı¶¯
+    # å†™å…¥è¡¨æƒ…é©±åŠ¨
     def write_edit_drver_date(self, all_date):
-        getJointCount = self.reader.getJointCount()  # »ñÈ¡¹Ç÷ÀÖ¸Êı
-        # print('¹Ç÷ÀÊıÁ¿:' + str(getJointCount))
+        getJointCount = self.reader.getJointCount()  # è·å–éª¨éª¼æŒ‡æ•°
+        # print('éª¨éª¼æ•°é‡:' + str(getJointCount))
         attr = []
         for j in range(0, getJointCount):
-            getJointName = self.reader.getJointName(j)  # »ñÈ¡¹Ç÷ÀÃû³Æ£¬¹Ç÷À¶Ô¹Ç÷À×éÊÇÒ»¶ÔÒ»µÄ¹ØÏµ
+            getJointName = self.reader.getJointName(j)  # è·å–éª¨éª¼åç§°ï¼Œéª¨éª¼å¯¹éª¨éª¼ç»„æ˜¯ä¸€å¯¹ä¸€çš„å…³ç³»
             list = ['translateX', 'translateY', 'translateZ', 'rotateX', 'rotateY', 'rotateZ', 'scaleX', 'scaleY',
                     'scaleZ']
             for at in list:
                 joint_name = getJointName
                 ls_list = [j, joint_name, at]
                 attr.append(ls_list)
-        # print('ËùÓĞ¹Ç÷ÀÊôĞÔ:' + str(len(attr)) + str(attr))
+        # print('æ‰€æœ‰éª¨éª¼å±æ€§:' + str(len(attr)) + str(attr))
         for n in range(0, len(all_date)):
             group_all_date = all_date[n][0]
-            joint_group = group_all_date[0]  # »ñÈ¡¹Ç÷À×éÃû³Æ
-            joint_value = group_all_date[1]  # »ñÈ¡°´ÊôĞÔ²ğ·ÖµÄÖµ
-            base_face_in_joint_group_indices = group_all_date[2]  # »ñÈ¡¹Ç÷À×éÖĞĞèÒªĞŞ¸ÄµÄ±íÇéÔÙËù¹ØÁªµÄËùÓĞ±íÇéµÄÎ»ÖÃ
-            getJointGroupInputIndices = self.reader.getJointGroupInputIndices(joint_group)  # »ñÈ¡¹Ç÷À×éËù¹ØÁªµÄÎ¢±íÇé
-            # »ñÈ¡ÊôĞÔÁĞ±íÒÔ¼°Æä¹ØÁªµÄÊôĞÔ
-            getJointGroupOutputIndices = self.reader.getJointGroupOutputIndices(joint_group)  # »ñÈ¡¹Ç÷À×éËù¹ØÁªµÄÊôĞÔ
-            for i in range(0, len(getJointGroupOutputIndices)):  # ¹Ç÷À×éÖĞËùÓĞ±íÇé
-                for j in range(0, len(attr)):  # ËùÓĞ¹Ç÷ÀµÄÊôĞÔ
+            joint_group = group_all_date[0]  # è·å–éª¨éª¼ç»„åç§°
+            joint_value = group_all_date[1]  # è·å–æŒ‰å±æ€§æ‹†åˆ†çš„å€¼
+            base_face_in_joint_group_indices = group_all_date[2]  # è·å–éª¨éª¼ç»„ä¸­éœ€è¦ä¿®æ”¹çš„è¡¨æƒ…å†æ‰€å…³è”çš„æ‰€æœ‰è¡¨æƒ…çš„ä½ç½®
+            getJointGroupInputIndices = self.reader.getJointGroupInputIndices(joint_group)  # è·å–éª¨éª¼ç»„æ‰€å…³è”çš„å¾®è¡¨æƒ…
+            # è·å–å±æ€§åˆ—è¡¨ä»¥åŠå…¶å…³è”çš„å±æ€§
+            getJointGroupOutputIndices = self.reader.getJointGroupOutputIndices(joint_group)  # è·å–éª¨éª¼ç»„æ‰€å…³è”çš„å±æ€§
+            for i in range(0, len(getJointGroupOutputIndices)):  # éª¨éª¼ç»„ä¸­æ‰€æœ‰è¡¨æƒ…
+                for j in range(0, len(attr)):  # æ‰€æœ‰éª¨éª¼çš„å±æ€§
                     if j == getJointGroupOutputIndices[i]:
-                        translate = cmds.xform((attr[j][1]), q=1, t=1)  # »ñÈ¡µ±Ç°¹Ç÷ÀÎ»ÒÆ
-                        getNeutralJointTranslation = self.reader.getNeutralJointTranslation(attr[j][0])  # »ñÈ¡Ä¬ÈÏ×´Ì¬Î»ÒÆ
-                        rotate = cmds.getAttr(attr[j][1] + '.rotate')[0]  # »ñÈ¡Ğı×ªÖµ
+                        translate = cmds.xform((attr[j][1]), q=1, t=1)  # è·å–å½“å‰éª¨éª¼ä½ç§»
+                        getNeutralJointTranslation = self.reader.getNeutralJointTranslation(attr[j][0])  # è·å–é»˜è®¤çŠ¶æ€ä½ç§»
+                        rotate = cmds.getAttr(attr[j][1] + '.rotate')[0]  # è·å–æ—‹è½¬å€¼
                         now_num = 0
                         base_num = 0
                         if attr[j][2] == 'translateX':
@@ -482,54 +482,54 @@ class dna_edit_library():
                         # print(attr[j][1] + '.' + attr[j][2])
                         # print(now_num)
                         # print(base_num)
-                        num = now_num - base_num  # ÖØ¼ÆËãÇı¶¯ÊıÖµ
+                        num = now_num - base_num  # é‡è®¡ç®—é©±åŠ¨æ•°å€¼
                         joint_value[i][base_face_in_joint_group_indices] = num
                         break
-            # ¿ªÊ¼ĞŞ¸ÄÖµ
+            # å¼€å§‹ä¿®æ”¹å€¼
             new_values = []
             for i in range(0, len(joint_value)):
                 for x in range(0, len(getJointGroupInputIndices)):
                     new_values.append(joint_value[i][x])
-            self.writer.setJointGroupValues(joint_group, new_values)  # ĞŞ¸ÄÊı¾İ
-        print('Ğ´ÈëĞÂ±íÇéÍê±Ï')
+            self.writer.setJointGroupValues(joint_group, new_values)  # ä¿®æ”¹æ•°æ®
+        print('å†™å…¥æ–°è¡¨æƒ…å®Œæ¯•')
 
 
-    # ²âÊÔµÄ´úÂë
+    # æµ‹è¯•çš„ä»£ç 
     def test(self,mesh_indices,sel_mesh):
         getMeshName = self.reader.getMeshName(mesh_indices)
         print('getMeshName:' + str(getMeshName))
-        # »ñÈ¡²¢·µ»Øµ±Ç°Ñ¡ÔñÄ£ĞÍ½á¹¹Êı¾İ
+        # è·å–å¹¶è¿”å›å½“å‰é€‰æ‹©æ¨¡å‹ç»“æ„æ•°æ®
         cmds.select(getMeshName)
         name, vertex_positions, vertex_normals, all_topology, uv_coords_us, uv_coords_vs = self.get_mesh_structure()
 
-        # ½«Ä£ĞÍ½á¹¹Êı¾İ×ª»»³ÉdnaËùĞèµÄÊı¾İ
+        # å°†æ¨¡å‹ç»“æ„æ•°æ®è½¬æ¢æˆdnaæ‰€éœ€çš„æ•°æ®
         mesh_indices, vertex_positions, vertex_normals, all_topology, uv, p_uv_nor_layout = self.data_required_for_conversion_into_dna(mesh_indices, name, vertex_positions, vertex_normals, all_topology,uv_coords_us, uv_coords_vs)
-        # ÉèÖÃÍØÆË
+        # è®¾ç½®æ‹“æ‰‘
         self.set_topology(mesh_indices, all_topology)
-        # ĞŞ¸ÄµãÎ»ÖÃ¡¢·¨Ïß¡¢UV×ø±ê
+        # ä¿®æ”¹ç‚¹ä½ç½®ã€æ³•çº¿ã€UVåæ ‡
         self.set_point_positions(mesh_indices, vertex_positions, vertex_normals, uv, p_uv_nor_layout)
-        # ÖØÖÃbs
+        # é‡ç½®bs
         self.reset_blendshape(mesh_indices)
-        # ±à¼­¹Ç÷ÀÎ»ÖÃ
+        # ç¼–è¾‘éª¨éª¼ä½ç½®
         self.edit_joint_tr()
-        # # ÖØÖÃµ±Ç°Ö¸Õë¹Ç÷ÀÈ¨ÖØ
+        # # é‡ç½®å½“å‰æŒ‡é’ˆéª¨éª¼æƒé‡
         # self.reset_joint_weight(mesh_indices)
-        # ±à¼­¹Ç÷ÀÈ¨ÖØ
+        # ç¼–è¾‘éª¨éª¼æƒé‡
         self.edit_joint_weight(mesh_indices)
 
-        # # ½«µ±Ç°Ä£ĞÍĞ´Èë³Ébs
+        # # å°†å½“å‰æ¨¡å‹å†™å…¥æˆbs
         # for bs_index, sel_index in zip([0],[0]):
         #     self.write_sel_model_to_bs(mesh_indices, bs_index, vertex_positions,sel_mesh[sel_index])
 
-        # °´±íÇéÇı¶¯Ö¸ÕëĞŞ¸ÄÇı¶¯
+        # æŒ‰è¡¨æƒ…é©±åŠ¨æŒ‡é’ˆä¿®æ”¹é©±åŠ¨
         # for face_drver_index in [191]:
         #     self.write_edit_drver_date(self.load_edit_drver_date(face_drver_index))
-        # Ğ´Èë
+        # å†™å…¥
         self.writer.write()
-        print('Ğ´ÈëÍê±Ï£¬Çë¼ÓÔØdna²é¿´Ğ§¹û¡£')
+        print('å†™å…¥å®Œæ¯•ï¼Œè¯·åŠ è½½dnaæŸ¥çœ‹æ•ˆæœã€‚')
 dna_edit_library().test(0,['asd'])
 # end_time = time.time()
-# # ¼ÆËã²¢´òÓ¡ºÄÊ±
+# # è®¡ç®—å¹¶æ‰“å°è€—æ—¶
 # elapsed_time = end_time - start_time
-# print(f"²Ù×÷ºÄÊ±: {elapsed_time} Ãë")
+# print(f"æ“ä½œè€—æ—¶: {elapsed_time} ç§’")
 # rl4Embedded_Archetype
