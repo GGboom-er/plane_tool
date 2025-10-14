@@ -1,0 +1,32 @@
+This tool lets you create natural, dynamic camera shakes in one click—quick and easy to use. You can regenerate until the result feels just right.
+Available Python3
+
+
+Features
+-Frame Range Adjust: Define exact start and end frames for the shake.
+-Translate & Rotate Strength: Control shake magnitude separately for translation and rotation.
+-Random Key: Add variability to each keyframe for more organic motion.
+-Invert Overshoot: Reverse the overshoot direction with a single checkbox.
+-Axis Selection: Choose which axes (X, Y, Z) to affect.
+Generate Types:
+-Base Pattern: Standard overshoot behavior.
+-Staggered Pattern: Offset each axis by a custom frame delay.
+-Clear Keys: Remove all generated keys between your chosen frame range.
+
+BY N3ÜRØ
+
+
+Follow me links
+
+
+- https://n3uro.gumroad.com/
+
+
+- https://vimeo.com/user86717735
+
+
+Contact
+
+
+Email : chongza_49@hotmail.com
+Email :animatrixstudioth@gmail.com

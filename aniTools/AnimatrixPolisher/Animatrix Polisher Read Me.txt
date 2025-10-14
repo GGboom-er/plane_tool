@@ -1,0 +1,50 @@
+Animatrix Polisher — Mesh Keyframe Sculpting Tool
+
+Animatrix Polisher is a Maya tool that allows animators to sculpt and keyframe meshes directly, giving full creative control over shapes and animation timing. Think of it like molding clay frame by frame — but inside Maya.
+
+Key Benefits
+
+- Sculpt & Keyframe Directly
+Create animation by sculpting your mesh and setting keyframes instantly.
+
+- Go Beyond the Rig
+Add details the rig doesn’t provide, refine bad shapes, and fix mesh penetrations.
+
+- Stylized Animation Freedom
+Easily craft smear frames or extreme stylized poses.
+
+- Non-Destructive Workflow
+Safe and fast sculpting without breaking existing animation.
+
+- Timing & Spacing Control
+Adjust blendShape node tangents freely: slow in, slow out, spacing tweaks — full animation polish power.
+
+How It Works?
+
+- Pick your mesh in the UI.
+
+- Toggle Sculpt Mode → sculpt directly on the mesh at any keyframe.
+
+- Exit Sculpt Mode → your shape is automatically stored as a key.
+
+- Adjust timing, spacing, or tangents as needed for smooth results.
+
+Use Cases
+
+- Adding details that aren’t rigged
+
+- Fixing mesh penetration during animation
+
+- Polishing ugly blendshape results
+
+- Creating smear frames for stylized motion
+
+- Fine-tuning timing with tangent adjustments
+
+Compatibility ***Work with Window only***
+
+Maya 2023 2024 2025 2026
+
+Tool By N3ÜRØ
+
+Animatrix Studio
