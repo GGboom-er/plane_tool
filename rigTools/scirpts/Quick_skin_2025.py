@@ -9,19 +9,27 @@
 @date: 2025/2/20 20:07
 @desc:
     根据鼠标位置在视口中射线检测(mesh)，找到命中的多边形(face)，
-    通过 skinPercent 查询该面上权重最大的骨骼(influence)，
+    通过 skinCluster 权重查询找到该面上影响最大的骨骼(influence)，
     自动切换 Paint Skin Weights 工具的绘制骨骼，
     并在该骨骼屏幕位置显示 HUD（绿色小圆点 + 骨骼名 + 笔刷模式）。
 
-    特性：
+    当前版本特性（高性能版 Phase 2）：
     - HUD 永远只有一个实例（Single HUD Instance，Qt 层做强制清理）；
     - 每次运行只更新位置和内容，1.2 秒后自动隐藏（QTimer 控制）；
-    - 支持组件选择模式（Component Selection）：face / vertex / edge 等。
+    - 支持组件选择模式（Component Selection）：face / vertex / edge 等；
+    - 使用 maya.api.OpenMaya / OpenMayaAnim(MFnSkinCluster.getWeights) 批量查询权重；
+    - 多级缓存：
+        * mesh -> skinCluster
+        * mesh -> (MDagPath, MFnMesh)（RayCast）
+        * mesh -> MDagPath(api2)
+        * skinCluster -> MFnSkinCluster(api2)
 """
 
 from __future__ import print_function
 import maya.OpenMayaUI as omui
 import maya.OpenMaya as om
+import maya.api.OpenMaya as om2
+import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 import maya.mel as mel
 
@@ -29,10 +37,15 @@ import shiboken6
 from PySide6 import QtWidgets, QtGui, QtCore
 
 # ----------------------------------------------------------------------
-# 全局 HUD 单例 & 计时器
+# 全局 HUD 单例 & 计时器 + 性能缓存
 # ----------------------------------------------------------------------
-_hud_instance = None      # InfluenceHUD 单例 (single HUD widget)
-_hud_timer = None         # QTimer 控制 HUD 自动隐藏 (auto-hide timer)
+_hud_instance = None          # InfluenceHUD 单例 (single HUD widget)
+_hud_timer = None             # QTimer 控制 HUD 自动隐藏 (auto-hide timer)
+
+_mesh_dag_cache = {}          # {mesh_name: (om.MDagPath, om.MFnMesh)} - RayCast 用
+_skincluster_cache = {}       # {mesh_name: skinCluster_name}
+_mesh_dag2_cache = {}         # {mesh_name: om2.MDagPath} - API2 权重查询用
+_skin_fn2_cache = {}          # {skinCluster_name: oma2.MFnSkinCluster}
 
 
 # ----------------------------------------------------------------------
@@ -52,7 +65,7 @@ def getScenePos():
 
 
 # ----------------------------------------------------------------------
-# RayCast: 根据鼠标位置获取 faceID
+# RayCast: 根据鼠标位置获取 faceID（带缓存）
 # ----------------------------------------------------------------------
 def getFaceIDbyMouseCursor(mesh_name):
     if not cmds.objExists(mesh_name):
@@ -66,16 +79,23 @@ def getFaceIDbyMouseCursor(mesh_name):
     view.viewToWorld(int(scene_pos[0]), int(scene_pos[1]), pos, direction)
     pos2 = om.MFloatPoint(pos.x, pos.y, pos.z)
 
-    selection_list = om.MSelectionList()
-    selection_list.add(mesh_name)
-    dag_path = om.MDagPath()
-    selection_list.getDagPath(0, dag_path)
+    # ------ 缓存 MFnMesh + DagPath（API1.0） ------
+    global _mesh_dag_cache
+    cache = _mesh_dag_cache.get(mesh_name)
+    if cache is not None:
+        dag_path, fn_mesh = cache
+    else:
+        selection_list = om.MSelectionList()
+        selection_list.add(mesh_name)
+        dag_path = om.MDagPath()
+        selection_list.getDagPath(0, dag_path)
 
-    # transform -> shape（保险）
-    if dag_path.apiType() == om.MFn.kTransform:
-        dag_path.extendToShape()
+        # transform -> shape
+        if dag_path.apiType() == om.MFn.kTransform:
+            dag_path.extendToShape()
 
-    fn_mesh = om.MFnMesh(dag_path)
+        fn_mesh = om.MFnMesh(dag_path)
+        _mesh_dag_cache[mesh_name] = (dag_path, fn_mesh)
 
     hit_point = om.MFloatPoint()
     hit_face_util = om.MScriptUtil()
@@ -104,29 +124,160 @@ def getFaceIDbyMouseCursor(mesh_name):
 
 
 # ----------------------------------------------------------------------
-# 根据 face 查询最大影响骨骼 (Max influence by face via skinPercent)
+# SkinCluster / Mesh API2 缓存工具
 # ----------------------------------------------------------------------
-def getMaxInfluenceByFace(face_id, skin_name):
-    vertex_list = cmds.polyListComponentConversion(face_id, ff=True, tv=True)
-    vertex_list_fl = cmds.ls(vertex_list, fl=True)
-    if not vertex_list_fl:
+def _get_skincluster_for_mesh(mesh_name):
+    """
+    mesh_name -> skinCluster 名称（带缓存）
+    """
+    global _skincluster_cache
+    sc = _skincluster_cache.get(mesh_name)
+    if sc and cmds.objExists(sc):
+        return sc
+
+    sc = mel.eval('findRelatedSkinCluster("{}");'.format(mesh_name))
+    if sc:
+        _skincluster_cache[mesh_name] = sc
+        return sc
+    return None
+
+
+def _get_mesh_dag_api2(mesh_name):
+    """
+    mesh_name -> MDagPath(api2)，指向 shape（用于 getWeights）
+    """
+    global _mesh_dag2_cache
+    dag = _mesh_dag2_cache.get(mesh_name)
+    if dag is not None:
+        return dag
+
+    sel = om2.MSelectionList()
+    try:
+        sel.add(mesh_name)
+    except:
         return None
 
-    influences_dict = {}
-    for vertex in vertex_list_fl:
-        influences = cmds.skinPercent(skin_name, vertex, query=True, transform=None)
-        weights = cmds.skinPercent(skin_name, vertex, query=True, value=True)
-        if weights:
-            max_value = max(weights)
-            max_influence = influences[weights.index(max_value)]
-            # 多个点时取该骨骼在这些点上的最大权重作为比较依据
-            influences_dict[max_influence] = max(influences_dict.get(max_influence, 0), max_value)
+    dag = sel.getDagPath(0)
+    # transform -> shape
+    if dag.apiType() == om2.MFn.kTransform:
+        dag = dag.extendToShape()
 
-    return max(influences_dict, key=influences_dict.get) if influences_dict else None
+    _mesh_dag2_cache[mesh_name] = dag
+    return dag
+
+
+def _get_skin_fn_api2(skin_name):
+    """
+    skinCluster 名称 -> MFnSkinCluster(api2)（带缓存）
+    """
+    global _skin_fn2_cache
+    fn_skin = _skin_fn2_cache.get(skin_name)
+    if fn_skin is not None:
+        return fn_skin
+
+    sel = om2.MSelectionList()
+    try:
+        sel.add(skin_name)
+    except:
+        return None
+
+    skin_obj = sel.getDependNode(0)
+    try:
+        fn_skin = oma2.MFnSkinCluster(skin_obj)
+    except:
+        return None
+
+    _skin_fn2_cache[skin_name] = fn_skin
+    return fn_skin
 
 
 # ----------------------------------------------------------------------
-# 计算骨骼在屏幕上的位置 (bone world pos -> screen pos)
+# 根据 face 查询最大影响骨骼（API2 + getWeights，核心提速点）
+# ----------------------------------------------------------------------
+def getMaxInfluenceByFace(face_id, skin_name):
+    """
+    使用 maya.api.OpenMaya + MFnSkinCluster.getWeights 做批量查询：
+    - face_id: 例如 "pSphere1.f[10]"
+    - skin_name: skinCluster 名称
+
+    返回：最大影响骨骼名称（partialPathName），找不到返回 None
+    """
+    if not face_id or not skin_name:
+        return None
+
+    try:
+        mesh_name = face_id.split('.')[0]
+        face_index = int(face_id.split('[')[-1].split(']')[0])
+    except Exception:
+        return None
+
+    if not cmds.objExists(mesh_name):
+        return None
+
+    # 获取 mesh DagPath(api2)
+    dag_path = _get_mesh_dag_api2(mesh_name)
+    if dag_path is None:
+        return None
+
+    try:
+        fn_mesh = om2.MFnMesh(dag_path)
+    except Exception:
+        return None
+
+    # face -> 顶点索引列表
+    try:
+        vtx_ids = fn_mesh.getPolygonVertices(face_index)
+    except Exception:
+        vtx_ids = []
+    if not vtx_ids:
+        return None
+
+    # 获取 MFnSkinCluster(api2)
+    fn_skin = _get_skin_fn_api2(skin_name)
+    if fn_skin is None:
+        return None
+
+    # 构建组件：这些顶点组成的 kMeshVertComponent
+    fn_comp = om2.MFnSingleIndexedComponent()
+    comp = fn_comp.create(om2.MFn.kMeshVertComponent)
+    fn_comp.addElements(vtx_ids)
+
+    try:
+        # weights: MDoubleArray，长度 = 顶点数 * influence_count
+        # influence_count: 影响骨骼个数
+        weights, influence_count = fn_skin.getWeights(dag_path, comp)
+    except Exception:
+        return None
+
+    if not weights or influence_count <= 0:
+        return None
+
+    # 在所有 (vertex, influence) 组合中，找到整体最大权重对应的 influence 索引
+    max_w = -1.0
+    max_inf_index = -1
+
+    for i, w in enumerate(weights):
+        if w > max_w:
+            max_w = w
+            max_inf_index = i % influence_count
+
+    if max_inf_index < 0:
+        return None
+
+    try:
+        inf_paths = fn_skin.influenceObjects()
+    except Exception:
+        return None
+
+    if max_inf_index >= len(inf_paths):
+        return None
+
+    # 返回 partialPathName，后面既能给 artAttrSkinPaintCtx 用，也能给 HUD 用
+    return inf_paths[max_inf_index].partialPathName()
+
+
+# ----------------------------------------------------------------------
+# 计算骨骼在屏幕上的位置 (bone world pos -> screen pos) - API1.0
 # ----------------------------------------------------------------------
 def getBoneScreenPos(joint_name):
     """
@@ -370,11 +521,13 @@ def UseInfluenceSetSkinList(mesh_name):
     if not face_id:
         return
 
-    skin = mel.eval('findRelatedSkinCluster("{}");'.format(mesh_name))
+    # 使用缓存获取 skinCluster
+    skin = _get_skincluster_for_mesh(mesh_name)
     if not skin:
         cmds.warning("No skin cluster found for '{}'".format(mesh_name))
         return
 
+    # 使用 API2 + getWeights 查询最大影响骨骼
     max_inf = getMaxInfluenceByFace(face_id, skin)
     if not max_inf:
         cmds.warning("Could not determine max influence for face '{}'".format(face_id))

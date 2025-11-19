@@ -25,20 +25,17 @@ def load_dna_reader( path ):
 
 def combine_lists_to_dict( A, B ):
     """
-    ½«Á½¸öµÈ³¤ÁĞ±í×éºÏÎª×Öµä£¬AµÄÔªËØÎª¼ü£¬¶ÔÓ¦BÔªËØ×é³ÉÖµÁĞ±í
-
-    ²ÎÊı:
-        A (list): °üº¬ÖØ¸´ÔªËØµÄ¼üÁĞ±í
-        B (list): ¶ÔÓ¦ÖµÔªËØµÄÁĞ±í
-
-    ·µ»Ø:
-        dict: ½á¹¹Îª {AÔªËØ: [¶ÔÓ¦BÔªËØÁĞ±í]}
-
-    Òì³£:
-        ValueError: µ±ÊäÈëÁĞ±í³¤¶È²»ÏàµÈÊ±
+    å°†ä¸¤ä¸ªç­‰é•¿åˆ—è¡¨ç»„åˆä¸ºå­—å…¸ï¼ŒAçš„å…ƒç´ ä¸ºé”®ï¼Œå¯¹åº”Bå…ƒç´ ç»„æˆå€¼åˆ—è¡¨
+    å‚æ•°:
+        A (list): åŒ…å«é‡å¤å…ƒç´ çš„é”®åˆ—è¡¨
+        B (list): å¯¹åº”å€¼å…ƒç´ çš„åˆ—è¡¨
+    è¿”å›:
+        dict: ç»“æ„ä¸º {Aå…ƒç´ : [å¯¹åº”Bå…ƒç´ åˆ—è¡¨]}
+    å¼‚å¸¸:
+        ValueError: å½“è¾“å…¥åˆ—è¡¨é•¿åº¦ä¸ç›¸ç­‰æ—¶
     """
     if len(A) != len(B):
-        raise ValueError("ÊäÈëÁĞ±í±ØĞëµÈ³¤")
+        raise ValueError("è¾“å…¥åˆ—è¡¨å¿…é¡»ç­‰é•¿")
 
     result_dict = {}
     for key, value in zip(A, B):
@@ -59,34 +56,34 @@ def getDNABsName( index ,calibrated):
 
 def get_blendshape_index( obj, target_name ):
     """
-    ÅĞ¶ÏÖ¸¶¨ÎïÌåÊÇ·ñÓĞ blendShape ½Úµã£¬ÊÇ·ñÓĞÄ¿±êÃûÎª target_name µÄ blendShape£¬²¢·µ»ØÆä index¡£
-    :param obj: str or PyNode£¬±äĞÎÄ¿±êÎïÌå
-    :param target_name: str£¬blendShape ÖĞµÄÄ¿±êÃû³Æ£¨ÀıÈç£ºbs_01£©
+    åˆ¤æ–­æŒ‡å®šç‰©ä½“æ˜¯å¦æœ‰ blendShape èŠ‚ç‚¹ï¼Œæ˜¯å¦æœ‰ç›®æ ‡åä¸º target_name çš„ blendShapeï¼Œå¹¶è¿”å›å…¶ indexã€‚
+    :param obj: str or PyNodeï¼Œå˜å½¢ç›®æ ‡ç‰©ä½“
+    :param target_name: strï¼ŒblendShape ä¸­çš„ç›®æ ‡åç§°ï¼ˆä¾‹å¦‚ï¼šbs_01ï¼‰
     :return: Tuple(bool, bool, int or None)
-             ÊÇ·ñÓĞblendShape£¬ÊÇ·ñÓĞ¸ÃÄ¿±ê£¬¸ÃÄ¿±êindex£¨Èç¹û´æÔÚ£©
+             æ˜¯å¦æœ‰blendShapeï¼Œæ˜¯å¦æœ‰è¯¥ç›®æ ‡ï¼Œè¯¥ç›®æ ‡indexï¼ˆå¦‚æœå­˜åœ¨ï¼‰
     """
     try:
         obj = pm.PyNode(obj)
     except pm.MayaNodeError:
         return False, False, None
 
-    # ²éÕÒ blendShape ½Úµã£¨Ö»ÕÒ deformers£©
+    # æŸ¥æ‰¾ blendShape èŠ‚ç‚¹ï¼ˆåªæ‰¾ deformersï¼‰
     history = pm.listHistory(obj, type='blendShape')
     if not history:
         return None, None
 
     for bs_node in history:
-        # »ñÈ¡ËùÓĞ target Ãû³Æ
+        # è·å–æ‰€æœ‰ target åç§°
         aliases = bs_node.listAliases()
         for alias_name, plug in aliases:
             if alias_name == target_name:
                 index = int(str(plug).split('[')[-1].rstrip(']'))
                 return index
-        return bs_node, None  # ÓĞblendShapeµ«Ã»ÓĞ¸Ãtarget
-    return None, None  # Ã»ÕÒµ½ÈÎºÎblendShape
+        return bs_node, None  # æœ‰blendShapeä½†æ²¡æœ‰è¯¥target
+    return None, None  # æ²¡æ‰¾åˆ°ä»»ä½•blendShape
 
 # ------------------------------------------------------
-# ¹¤¾ßº¯Êı£º¼ÇÂ¼Óë»¹Ô­ÊôĞÔ×´Ì¬£¨Ëø¶¨¡¢Á¬½Ó¡¢µ±Ç°Öµ£©
+# å·¥å…·å‡½æ•°ï¼šè®°å½•ä¸è¿˜åŸå±æ€§çŠ¶æ€ï¼ˆé”å®šã€è¿æ¥ã€å½“å‰å€¼ï¼‰
 # ------------------------------------------------------
 def record_and_unlock_attr( attr ):
     data = {
@@ -138,21 +135,21 @@ def restore_attr( attr, data ):
 
 def returnShapeOrig( mesh_transform ):
     """
-    ¸ø¶¨Ä£ĞÍ transform ½Úµã£¬·µ»ØÆäÓĞĞ§ shape ÓëÓĞĞ§ orig ½ÚµãÂ·¾¶¡£
-    ×Ô¶¯ÇåÀíÎŞĞ§ Orig¡£
-    ·µ»ØÖµ£º(shape_path, orig_path) »ò None
+    ç»™å®šæ¨¡å‹ transform èŠ‚ç‚¹ï¼Œè¿”å›å…¶æœ‰æ•ˆ shape ä¸æœ‰æ•ˆ orig èŠ‚ç‚¹è·¯å¾„ã€‚
+    è‡ªåŠ¨æ¸…ç†æ— æ•ˆ Origã€‚
+    è¿”å›å€¼ï¼š(shape_path, orig_path) æˆ– None
     """
     if not cmds.objExists(mesh_transform):
-        print("Ä£ĞÍ²»´æÔÚ£º{}".format(mesh_transform))
+        print("æ¨¡å‹ä¸å­˜åœ¨ï¼š{}".format(mesh_transform))
         return None
 
-    # »ñÈ¡ËùÓĞ shape ½Úµã£¨long path£©
+    # è·å–æ‰€æœ‰ shape èŠ‚ç‚¹ï¼ˆlong pathï¼‰
     shape_nodes = cmds.listRelatives(mesh_transform, shapes=True, fullPath=True) or []
     if not shape_nodes:
-        print("ÎŞ shape ½Úµã")
+        print("æ—  shape èŠ‚ç‚¹")
         return None
 
-    # Çø·Ö shape Óë orig
+    # åŒºåˆ† shape ä¸ orig
     valid_shapes = []
     orig_shapes = []
 
@@ -164,14 +161,14 @@ def returnShapeOrig( mesh_transform ):
         else:
             valid_shapes.append(shape)
 
-    # ÎŞÓĞĞ§ shape£¬Ò²²»´¦Àí
+    # æ— æœ‰æ•ˆ shapeï¼Œä¹Ÿä¸å¤„ç†
     if not valid_shapes:
-        print("ÎŞÓĞĞ§ shape")
+        print("æ— æœ‰æ•ˆ shape")
         return None
 
-    valid_shape = valid_shapes[0]  # Ö»·µ»ØµÚÒ»¸öÓĞĞ§ shape£¬ÈôÓĞ¶à¸ö shape ¿É×Ô¶¨ÒåÂß¼­
+    valid_shape = valid_shapes[0]  # åªè¿”å›ç¬¬ä¸€ä¸ªæœ‰æ•ˆ shapeï¼Œè‹¥æœ‰å¤šä¸ª shape å¯è‡ªå®šä¹‰é€»è¾‘
 
-    # ¼ì²é orig_shapes ÊÇ·ñÓĞÁ¬½Ó deformers
+    # æ£€æŸ¥ orig_shapes æ˜¯å¦æœ‰è¿æ¥ deformers
     connected_orig = None
     for orig in orig_shapes:
         cons = cmds.listConnections(orig + ".outMesh", destination=True, plugs=True) or []
@@ -187,23 +184,23 @@ def returnShapeOrig( mesh_transform ):
             if connected_orig is None:
                 connected_orig = orig
             else:
-                print("[?] ¶à¸öÓĞĞ§ Orig£¿ÒÑºöÂÔ£º", orig)
+                print("[?] å¤šä¸ªæœ‰æ•ˆ Origï¼Ÿå·²å¿½ç•¥ï¼š", orig)
         else:
-            print("[?] É¾³ıÎŞÁ¬½Ó Orig£º", orig)
+            print("[?] åˆ é™¤æ— è¿æ¥ Origï¼š", orig)
             cmds.delete(orig)
 
     return (valid_shape, connected_orig)
 
 
 # ------------------------------------------------------
-# ¸´ÖÆ¸É¾»Ä£ĞÍµ½ÁÙÊ±×é
+# å¤åˆ¶å¹²å‡€æ¨¡å‹åˆ°ä¸´æ—¶ç»„
 # ------------------------------------------------------
 def extract_clean_mesh_from_transform( transform, name="cleanMesh", container_group="__EXPR_TEMP__" ):
-    # ´´½¨ÁÙÊ±×é
+    # åˆ›å»ºä¸´æ—¶ç»„
     if not cmds.objExists(container_group):
         cmds.group(em=True, name=container_group)
 
-    # ´´½¨²¢Á¬½Ó
+    # åˆ›å»ºå¹¶è¿æ¥
     new_transform = cmds.createNode("transform", name=name)
     new_shape = cmds.createNode("mesh", name="{}Shape".format(name), parent=new_transform)
     cmds.connectAttr(transform + ".outMesh", new_shape + ".inMesh", force=True)
@@ -216,17 +213,17 @@ def extract_clean_mesh_from_transform( transform, name="cleanMesh", container_gr
 
 
 # ------------------------------------------------------
-# Ö÷Âß¼­£º´¦ÀíÊı¾İ½á¹¹²¢¸´ÖÆÄ£ĞÍ
+# ä¸»é€»è¾‘ï¼šå¤„ç†æ•°æ®ç»“æ„å¹¶å¤åˆ¶æ¨¡å‹
 # ------------------------------------------------------
 def get_blendshape_node_from_mesh(mesh_shape):
-    """´Óshape½Úµã»ñÈ¡Æä°ó¶¨µÄblendShape½Úµã"""
+    """ä»shapeèŠ‚ç‚¹è·å–å…¶ç»‘å®šçš„blendShapeèŠ‚ç‚¹"""
     history = cmds.listHistory(mesh_shape) or []
     blendshapes = next((node for node in history if cmds.nodeType(node) == 'blendShape'), None)
     if blendshapes:
         return blendshapes
     return None
 def get_active_blendshape_targets(blendshape_node, threshold=0.99):
-    """·µ»Øµ±Ç°¼¤»îÈ¨ÖØÎª1µÄblendShape targetÃû³ÆÁĞ±í"""
+    """è¿”å›å½“å‰æ¿€æ´»æƒé‡ä¸º1çš„blendShape targetåç§°åˆ—è¡¨"""
     active_targets = []
     if not blendshape_node or not cmds.objExists(blendshape_node):
         return active_targets
@@ -244,13 +241,13 @@ def get_active_blendshape_targets(blendshape_node, threshold=0.99):
 
 def process_expression_data(expr_data_dict, source_model, container_group="__EXPR_TEMP__"):
     result_models = []
-    expr_bs_map = {}  # ´æ´¢Ã¿¸öexpr_name¶ÔÓ¦¼¤»îµÄblendshapeÊôĞÔ
+    expr_bs_map = {}  # å­˜å‚¨æ¯ä¸ªexpr_nameå¯¹åº”æ¿€æ´»çš„blendshapeå±æ€§
     source_model_shapes = returnShapeOrig(source_model)[0]
 
-    # »ñÈ¡°ó¶¨µÄ blendShape ½Úµã
+    # è·å–ç»‘å®šçš„ blendShape èŠ‚ç‚¹
     blendshape_node = get_blendshape_node_from_mesh(source_model_shapes)
     if not blendshape_node:
-        print("? Î´ÕÒµ½blendShape½Úµã: {}".format(source_model))
+        print("? æœªæ‰¾åˆ°blendShapeèŠ‚ç‚¹: {}".format(source_model))
         return result_models, expr_bs_map
 
     for index, item in expr_data_dict.items():
@@ -258,16 +255,16 @@ def process_expression_data(expr_data_dict, source_model, container_group="__EXP
         attr_paths = item[expr_name]
 
         if expr_name in [None, '', 'None']:
-            print("?? Ìø¹ıÎŞĞ§bsÊôĞÔ index {} attr {}".format(index, attr_paths))
+            print("?? è·³è¿‡æ— æ•ˆbså±æ€§ index {} attr {}".format(index, attr_paths))
             continue
 
         valid_attrs = []
         attr_state_map = {}
 
-        # ¼¤»î±í´ïÊôĞÔ
+        # æ¿€æ´»è¡¨è¾¾å±æ€§
         for attr_path in attr_paths:
             if not cmds.objExists(attr_path):
-                print("?? ÊôĞÔ²»´æÔÚ: {}£¬Ìø¹ı".format(attr_path))
+                print("?? å±æ€§ä¸å­˜åœ¨: {}ï¼Œè·³è¿‡".format(attr_path))
                 continue
 
             state = record_and_unlock_attr(attr_path)
@@ -285,20 +282,20 @@ def process_expression_data(expr_data_dict, source_model, container_group="__EXP
         if not valid_attrs:
             continue
 
-        print("? Index {} ¡ú [{}] ¡ú ¼¤»î {}".format(index, expr_name, valid_attrs))
+        print("? Index {} â†’ [{}] â†’ æ¿€æ´» {}".format(index, expr_name, valid_attrs))
 
-        # ¼ÇÂ¼µ±Ç°bsÊôĞÔ
+        # è®°å½•å½“å‰bså±æ€§
         active_bs_targets = get_active_blendshape_targets(blendshape_node)
         expr_bs_map[expr_name] = active_bs_targets
 
-        # ÌáÈ¡±í´ïÍø¸ñ
+        # æå–è¡¨è¾¾ç½‘æ ¼
         expr_mesh = extract_clean_mesh_from_transform(source_model_shapes, name=expr_name,container_group=container_group)
         if expr_mesh:
             result_models.append(expr_mesh)
         else:
-            print("? ÎŞ·¨¸´ÖÆÄ£ĞÍ: {} ¡ú {}".format(source_model, expr_name))
+            print("? æ— æ³•å¤åˆ¶æ¨¡å‹: {} â†’ {}".format(source_model, expr_name))
 
-        # »¹Ô­ÊôĞÔ
+        # è¿˜åŸå±æ€§
         for attr_path in valid_attrs:
             restore_attr(attr_path, attr_state_map[attr_path])
 
@@ -306,24 +303,24 @@ def process_expression_data(expr_data_dict, source_model, container_group="__EXP
 
 
 # ------------------------------------------------------
-# Á¬½Ó±íÇéÄ£ĞÍÖÁÄ¿±êÄ£ĞÍ BlendShape ½Úµã
+# è¿æ¥è¡¨æƒ…æ¨¡å‹è‡³ç›®æ ‡æ¨¡å‹ BlendShape èŠ‚ç‚¹
 # ------------------------------------------------------
 def connect_expression_meshes_to_blendshape( target_model, expr_meshes ):
     if not expr_meshes:
-        print("?? ÎŞ±íÇéÄ£ĞÍ¿ÉÁ¬½Ó")
+        print("?? æ— è¡¨æƒ…æ¨¡å‹å¯è¿æ¥")
         return
 
-    # »ñÈ¡ÒÑÓĞ blendShape ½Úµã
+    # è·å–å·²æœ‰ blendShape èŠ‚ç‚¹
     history = cmds.listHistory(target_model) or []
     bs_node = next((node for node in history if cmds.nodeType(node) == 'blendShape'), None)
 
     if not bs_node:
-        # ÈôÎŞbs½Úµã£¬Ö±½ÓÌí¼ÓËùÓĞ±íÇé
+        # è‹¥æ— bsèŠ‚ç‚¹ï¼Œç›´æ¥æ·»åŠ æ‰€æœ‰è¡¨æƒ…
         bs_node = cmds.blendShape(expr_meshes, target_model, name="{}_bs".format(target_model))[0]
-        print("? ´´½¨ĞÂblendShape½Úµã: {}".format(bs_node))
+        print("? åˆ›å»ºæ–°blendShapeèŠ‚ç‚¹: {}".format(bs_node))
         return
 
-    # ÒÑÓĞbs½Úµã£¬²éÑ¯ÏÖÓĞblendshapeÊôĞÔ£¨±ğÃûÓëÕæÊµÊôĞÔ£©
+    # å·²æœ‰bsèŠ‚ç‚¹ï¼ŒæŸ¥è¯¢ç°æœ‰blendshapeå±æ€§ï¼ˆåˆ«åä¸çœŸå®å±æ€§ï¼‰
     existing_targets = cmds.aliasAttr(bs_node, q=True) or []
 
     existing_target_indices = {}
@@ -334,73 +331,72 @@ def connect_expression_meshes_to_blendshape( target_model, expr_meshes ):
             index = int(real_attr.split('[')[-1].replace(']', ''))
             existing_target_indices[alias] = index
         except ValueError:
-            print("?? Ìø¹ıÎŞ·¨½âÎöµÄÊôĞÔ: {}".format(real_attr))
+            print("?? è·³è¿‡æ— æ³•è§£æçš„å±æ€§: {}".format(real_attr))
 
-    # »ñÈ¡µ±Ç°ÒÑÓĞindex×î´óÖµ£¬±ãÓÚ×·¼ÓĞÂÊôĞÔ
+    # è·å–å½“å‰å·²æœ‰indexæœ€å¤§å€¼ï¼Œä¾¿äºè¿½åŠ æ–°å±æ€§
     existing_indices = cmds.getAttr(bs_node + ".weight", multiIndices=True) or []
     max_index = max(existing_indices) + 1 if existing_indices else 0
 
     for mesh in expr_meshes:
-        expr_name = mesh.split('|')[-1]  # È¥³ı²ã¼¶Â·¾¶
+        expr_name = mesh.split('|')[-1]  # å»é™¤å±‚çº§è·¯å¾„
         mesh_shape = cmds.listRelatives(mesh, shapes=True, fullPath=True)[0]
 
         if expr_name in existing_target_indices:
-            # ÒÑ´æÔÚ´ËblendshapeÊôĞÔ£¬Ö»ĞèÁ¬½Ó
+            # å·²å­˜åœ¨æ­¤blendshapeå±æ€§ï¼Œåªéœ€è¿æ¥
             index = existing_target_indices[expr_name]
-            print("? ÒÑ´æÔÚ: {} ¡ú index {}£¬ÖØĞÂÁ¬½ÓÊä³ö".format(expr_name, index))
+            print("? å·²å­˜åœ¨: {} â†’ index {}ï¼Œé‡æ–°è¿æ¥è¾“å‡º".format(expr_name, index))
 
-            # Ç¿ÖÆÁ¬½Ó worldMesh µ½ blendShape µÄ inputGeomTarget
+            # å¼ºåˆ¶è¿æ¥ worldMesh åˆ° blendShape çš„ inputGeomTarget
             target_attr = "{0}.inputTarget[0].inputTargetGroup[{1}].inputTargetItem[6000].inputGeomTarget".format(
                 bs_node, index)
             cmds.connectAttr(mesh_shape + ".worldMesh[0]", target_attr, force=True)
         else:
-            # ²»´æÔÚ´ËblendshapeÊôĞÔ£¬×·¼ÓĞÂÄ¿±ê
+            # ä¸å­˜åœ¨æ­¤blendshapeå±æ€§ï¼Œè¿½åŠ æ–°ç›®æ ‡
             index = max_index
             max_index += 1
             cmds.blendShape(bs_node, e=True, t=(target_model, index, mesh, 1.0))
-            print("? Ìí¼Ó: {} ¡ú index {}".format(expr_name, index))
+            print("? æ·»åŠ : {} â†’ index {}".format(expr_name, index))
 
 def create_blendshape_diff(target_expr_name, source_expr_names, source_model, blendshape_name="autoBlendShape"):
     """
-    ´´½¨ blendShape ½Úµã²¢£º
-      1. ½« target_expr_name µÄÈ¨ÖØÉèÎª +1£¬ÆäËü source_expr_names µÄÈ¨ÖØÉèÎª -1
-      2. ¶Ï¿ª blendShape.inputTarget[*].inputGeomTarget ÉÏµÄ mesh Á¬½Ó
-
-    ²ÎÊı£º
-        target_expr_name (str): Ä¿±ê±í´ïÊ½Ä£ĞÍÃû£¨È¨ÖØ +1£©
-        source_expr_names (list of str or None): ²î·ÖÔ´±í´ïÊ½Ä£ĞÍÃû£¨È¨ÖØ -1£©£¬ÔÊĞíÓĞ None Öµ£¬½«±»×Ô¶¯ºöÂÔ
-        source_model (str): ±»±äĞÎµÄÄ¿±êÄ£ĞÍ
-        blendshape_name (str): blendShape ½ÚµãÃû³Æ£¨¿ÉÑ¡£©
-    ·µ»Ø£º
-        str: ĞÂ´´½¨µÄ blendShape ½ÚµãÃû
+    åˆ›å»º blendShape èŠ‚ç‚¹å¹¶ï¼š
+      1. å°† target_expr_name çš„æƒé‡è®¾ä¸º +1ï¼Œå…¶å®ƒ source_expr_names çš„æƒé‡è®¾ä¸º -1
+      2. æ–­å¼€ blendShape.inputTarget[*].inputGeomTarget ä¸Šçš„ mesh è¿æ¥
+    å‚æ•°ï¼š
+        target_expr_name (str): ç›®æ ‡è¡¨è¾¾å¼æ¨¡å‹åï¼ˆæƒé‡ +1ï¼‰
+        source_expr_names (list of str or None): å·®åˆ†æºè¡¨è¾¾å¼æ¨¡å‹åï¼ˆæƒé‡ -1ï¼‰ï¼Œå…è®¸æœ‰ None å€¼ï¼Œå°†è¢«è‡ªåŠ¨å¿½ç•¥
+        source_model (str): è¢«å˜å½¢çš„ç›®æ ‡æ¨¡å‹
+        blendshape_name (str): blendShape èŠ‚ç‚¹åç§°ï¼ˆå¯é€‰ï¼‰
+    è¿”å›ï¼š
+        str: æ–°åˆ›å»ºçš„ blendShape èŠ‚ç‚¹å
     """
 
     if not cmds.objExists(source_model):
-        raise ValueError("Ä¿±êÍø¸ñ²»´æÔÚ: {}".format(source_model))
+        raise ValueError("ç›®æ ‡ç½‘æ ¼ä¸å­˜åœ¨: {}".format(source_model))
 
     if not cmds.objExists(target_expr_name):
-        raise ValueError("Ä¿±ê±í´ïÊ½Ä£ĞÍ²»´æÔÚ: {}".format(target_expr_name))
+        raise ValueError("ç›®æ ‡è¡¨è¾¾å¼æ¨¡å‹ä¸å­˜åœ¨: {}".format(target_expr_name))
 
-    # ÇåÀíÊäÈë£ººöÂÔ None¡¢¿Õ×Ö·û´®¡¢·Ç´æÔÚ¶ÔÏó
+    # æ¸…ç†è¾“å…¥ï¼šå¿½ç•¥ Noneã€ç©ºå­—ç¬¦ä¸²ã€éå­˜åœ¨å¯¹è±¡
     cleaned_sources = []
     for src in source_expr_names:
         if src and isinstance(src, str) and cmds.objExists(src):
             cleaned_sources.append(src)
         elif src:
-            print("¾¯¸æ: ºöÂÔÎŞĞ§µÄÔ´±í´ïÊ½: {}".format(src))
+            print("è­¦å‘Š: å¿½ç•¥æ— æ•ˆçš„æºè¡¨è¾¾å¼: {}".format(src))
 
-    # ¹¹½¨ blendShape ÊäÈëÁĞ±í£¨Ä¿±ê±íÇé + ÓĞĞ§Ô´±íÇé£©
+    # æ„å»º blendShape è¾“å…¥åˆ—è¡¨ï¼ˆç›®æ ‡è¡¨æƒ… + æœ‰æ•ˆæºè¡¨æƒ…ï¼‰
     all_targets = [target_expr_name] + cleaned_sources
 
-    # ´´½¨ blendShape ½Úµã
+    # åˆ›å»º blendShape èŠ‚ç‚¹
     bs_node = cmds.blendShape(all_targets, source_model, name=blendshape_name)[0]
 
-    # ÉèÖÃÈ¨ÖØ²¢¶Ï¿ª mesh ÊäÈëÁ¬½Ó
+    # è®¾ç½®æƒé‡å¹¶æ–­å¼€ mesh è¾“å…¥è¿æ¥
     for idx, tgt in enumerate(all_targets):
         weight_value = 1.0 if idx == 0 else -1.0
         cmds.setAttr(f"{bs_node}.w[{idx}]", weight_value)
 
-        # ¹¹½¨ inputGeomTarget Â·¾¶²¢¶Ï¿ª
+        # æ„å»º inputGeomTarget è·¯å¾„å¹¶æ–­å¼€
         geom_attr = f"{bs_node}.inputTarget[{idx}].inputTargetGroup[0].inputTargetItem[6000].inputGeomTarget"
         if cmds.objExists(geom_attr):
             conns = cmds.listConnections(geom_attr, source=True, destination=False, plugs=True) or []
@@ -408,7 +404,7 @@ def create_blendshape_diff(target_expr_name, source_expr_names, source_model, bl
                 try:
                     cmds.disconnectAttr(src_plug, geom_attr)
                 except Exception:
-                    pass  # ¿ÉºöÂÔÌØÊâÁ¬½ÓÊ§°Ü
+                    pass  # å¯å¿½ç•¥ç‰¹æ®Šè¿æ¥å¤±è´¥
 
     return bs_node
 
@@ -416,45 +412,45 @@ def create_blendshape_diff(target_expr_name, source_expr_names, source_model, bl
 
 def generate_blendshape_delta_target( target_expr_name, source_expr_names, source_model ):
     """
-    ´´½¨²îÖµ±íÇéÄ£ĞÍ£º
-    - ÊäÈëÒ»¸öÄ¿±êÄ£ĞÍÃû£¨ĞèÒÑ´æÔÚÓÚ³¡¾°ÖĞ£©
-    - ÊäÈë¶à¸öÇı¶¯¸ÃÄ¿±êµÄ±íÇéÄ£ĞÍÃû³Æ
-    - ÊäÈëÔ´»ù´¡Ä£ĞÍÃû£¨½«ÌáÈ¡Æä Orig ĞÎÌ¬½øĞĞblend£©
+    åˆ›å»ºå·®å€¼è¡¨æƒ…æ¨¡å‹ï¼š
+    - è¾“å…¥ä¸€ä¸ªç›®æ ‡æ¨¡å‹åï¼ˆéœ€å·²å­˜åœ¨äºåœºæ™¯ä¸­ï¼‰
+    - è¾“å…¥å¤šä¸ªé©±åŠ¨è¯¥ç›®æ ‡çš„è¡¨æƒ…æ¨¡å‹åç§°
+    - è¾“å…¥æºåŸºç¡€æ¨¡å‹åï¼ˆå°†æå–å…¶ Orig å½¢æ€è¿›è¡Œblendï¼‰
     """
     if not cmds.objExists(source_model):
-        cmds.error("? Ô´Ä£ĞÍ²»´æÔÚ: {}".format(source_model))
+        cmds.error("? æºæ¨¡å‹ä¸å­˜åœ¨: {}".format(source_model))
         return
-    # »ñÈ¡Orig½Úµã²¢¸´ÖÆÎª clean Ô­Ê¼ĞÎÌ¬
+    # è·å–OrigèŠ‚ç‚¹å¹¶å¤åˆ¶ä¸º clean åŸå§‹å½¢æ€
     orig_shape = returnShapeOrig(source_model)[1]
     if not orig_shape:
-        cmds.error("? ÎŞ·¨ÕÒµ½ {} µÄOrig½Úµã".format(source_model))
+        cmds.error("? æ— æ³•æ‰¾åˆ° {} çš„OrigèŠ‚ç‚¹".format(source_model))
         return
     print(orig_shape)
     original_mesh = extract_clean_mesh_from_transform(orig_shape, name="{}_TMEP_Au".format(target_expr_name))
     if not original_mesh:
-        cmds.error("? ÎŞ·¨¸´ÖÆ Orig Íø¸ñ")
+        cmds.error("? æ— æ³•å¤åˆ¶ Orig ç½‘æ ¼")
         return
 
-    # ´´½¨ BlendShape Çı¶¯½Úµã
+    # åˆ›å»º BlendShape é©±åŠ¨èŠ‚ç‚¹
     create_blendshape_diff(target_expr_name, source_expr_names, original_mesh, blendshape_name="TEMPcomBsNode")
-    # Ö´ĞĞ²îÖµÉú³ÉÃüÁî
-    print("? ²îÖµÄ£ĞÍÉú³É: {}".format(original_mesh))
+    # æ‰§è¡Œå·®å€¼ç”Ÿæˆå‘½ä»¤
+    print("? å·®å€¼æ¨¡å‹ç”Ÿæˆ: {}".format(original_mesh))
 
-    # Ìæ»»Ä¿±êÄ£ĞÍ inMesh
+    # æ›¿æ¢ç›®æ ‡æ¨¡å‹ inMesh
 
     original_meshShape = returnShapeOrig(original_mesh)[0]
     target_shape = returnShapeOrig(target_expr_name)[0]
     cmds.connectAttr(original_meshShape + ".outMesh", target_shape + ".inMesh", force=True)
     cmds.refresh(force=True)
-    print("? ³É¹¦Á¬½Ó {} ¡ú {}".format(original_meshShape + ".outMesh", target_shape + ".inMesh"))
+    print("? æˆåŠŸè¿æ¥ {} â†’ {}".format(original_meshShape + ".outMesh", target_shape + ".inMesh"))
 
-    # É¾³ı²îÖµÄ£ĞÍ
+    # åˆ é™¤å·®å€¼æ¨¡å‹
     delta_parent = cmds.listRelatives(original_meshShape, parent=True, fullPath=True)
     if delta_parent:
         #cmds.delete(delta_parent[0])
-        print("? ÒÑÇåÀí²îÖµÁÙÊ±Ä£ĞÍ")
+        print("? å·²æ¸…ç†å·®å€¼ä¸´æ—¶æ¨¡å‹")
 
-    print("? Íê³É²îÖµÌæ»»: {}".format(target_expr_name))
+    print("? å®Œæˆå·®å€¼æ›¿æ¢: {}".format(target_expr_name))
 
 if __name__ == '__main__':
 CHARACTER_DNA = r'U:\ywm\MHC\Downloaded\DHI\5jd1XPwC_asset\1k\asset_source\MetaHumans\yy\SourceAssets\yy.dna'
@@ -470,7 +466,7 @@ for AuIndex in sorted(AUlist.keys()):
     AuBsComName = [getDNABsName(i,calibrated) for i in AUlist[AuIndex]]
     # Result: ['mouth_upperLipRaise_right', 'mouth_lowerLipDepress_right', 'jaw_open']
     AuBsExpName = [calibrated.getRawControlName(i) for i in AUlist[AuIndex]]
-    # µÃµ½¸´ºÏ±íÇéÊÜÄÄĞ©»ù´¡±íÇéÁªºÏ¿ØÖÆ
+    # å¾—åˆ°å¤åˆè¡¨æƒ…å—å“ªäº›åŸºç¡€è¡¨æƒ…è”åˆæ§åˆ¶
     AuBsInfo[AuIndex] = {AuBsName: AuBsExpName}
     AuBsMapInfo[AuIndex] = {AuBsName: AuBsComName}
 for expIndex in range(calibrated.getRawControlCount()):
@@ -479,7 +475,7 @@ for expIndex in range(calibrated.getRawControlCount()):
     BsInfo[expIndex] = {bsName: [expName]}
 AllBsInfo = {**BsInfo, **AuBsInfo}
 # ---------------------------
-# Ê¾Àıµ÷ÓÃ
+# ç¤ºä¾‹è°ƒç”¨
 # ---------------------------
 #
 result_meshes = process_expression_data(AllBsInfo, source_model='pasted__sunshangxiang_L_eyeshadow2')
@@ -491,8 +487,3 @@ for k,v in result_meshes.items():
         source_expr_names=v,
         source_model='pasted__sunshangxiang_L_eyeshadow2'
         )
-
-
-
-
-
