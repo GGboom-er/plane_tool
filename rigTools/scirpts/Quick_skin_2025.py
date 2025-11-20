@@ -3,99 +3,172 @@
 
 """
 @author: GGboom
-@license: MIT
-@contact: https://github.com/GGboom-er
-@file: Quick_skin_2025.py
-@date: 2025/2/20 20:07
 @desc:
-    根据鼠标位置在视口中射线检测(mesh)，找到命中的多边形(face)，
-    通过 skinCluster 权重查询找到该面上影响最大的骨骼(influence)，
-    自动切换 Paint Skin Weights 工具的绘制骨骼，
-    并在该骨骼屏幕位置显示 HUD（绿色小圆点 + 骨骼名 + 笔刷模式）。
+    Quick Skin Picker + 关节屏幕标记 + 相机旋转枢轴 (Tumble Pivot) 对齐
 
-    当前版本特性（高性能版 Phase 2）：
-    - HUD 永远只有一个实例（Single HUD Instance，Qt 层做强制清理）；
-    - 每次运行只更新位置和内容，1.2 秒后自动隐藏（QTimer 控制）；
-    - 支持组件选择模式（Component Selection）：face / vertex / edge 等；
-    - 使用 maya.api.OpenMaya / OpenMayaAnim(MFnSkinCluster.getWeights) 批量查询权重；
-    - 多级缓存：
-        * mesh -> skinCluster
-        * mesh -> (MDagPath, MFnMesh)（RayCast）
-        * mesh -> MDagPath(api2)
-        * skinCluster -> MFnSkinCluster(api2)
+    - 基于 Quick_skin_2025 原逻辑：射线选面 + skinCluster 权重查询
+    - 权重查询使用 API2.0 MFnSkinCluster.getWeights 高性能实现
+    - 新增：
+        * 小绿点 + 悬浮标签，标记骨骼屏幕位置
+        * 相机 Alt 旋转围绕该骨骼旋转（通过 Tumble Pivot）
 """
 
 from __future__ import print_function
+
+import sys
+
+# --- API 1.0：视图 / 相机 / 射线 -------------------------------------------
 import maya.OpenMayaUI as omui
 import maya.OpenMaya as om
+
+# --- API 2.0：高性能权重 / 世界坐标 / 屏幕坐标 -------------------------------
 import maya.api.OpenMaya as om2
+import maya.api.OpenMayaUI as omui2
 import maya.api.OpenMayaAnim as oma2
+
 import maya.cmds as cmds
 import maya.mel as mel
 
-import shiboken6
 from PySide6 import QtWidgets, QtGui, QtCore
-
-# ----------------------------------------------------------------------
-# 全局 HUD 单例 & 计时器 + 性能缓存
-# ----------------------------------------------------------------------
-_hud_instance = None          # InfluenceHUD 单例 (single HUD widget)
-_hud_timer = None             # QTimer 控制 HUD 自动隐藏 (auto-hide timer)
-
-_mesh_dag_cache = {}          # {mesh_name: (om.MDagPath, om.MFnMesh)} - RayCast 用
-_skincluster_cache = {}       # {mesh_name: skinCluster_name}
-_mesh_dag2_cache = {}         # {mesh_name: om2.MDagPath} - API2 权重查询用
-_skin_fn2_cache = {}          # {skinCluster_name: oma2.MFnSkinCluster}
+import shiboken6
 
 
 # ----------------------------------------------------------------------
-# 视口鼠标位置 (Viewport mouse position)
+# 全局 UI 单例
 # ----------------------------------------------------------------------
-def getScenePos():
+_overlay_widget = None
+
+
+class BoneInfoOverlay(QtWidgets.QWidget):
     """
-    返回鼠标在当前 3D 视图中的坐标（视口坐标系）
-    M3dView 原点：左下
+    屏幕悬浮标签：
+    - 左侧小绿点代表骨骼屏幕位置
+    - 右侧黑底文字显示骨骼名 + 笔刷模式
     """
-    view = omui.M3dView.active3dView()
+
+    def __init__(self, parent=None):
+        super(BoneInfoOverlay, self).__init__(parent)
+
+        self.setWindowFlags(
+            QtCore.Qt.FramelessWindowHint |
+            QtCore.Qt.ToolTip |
+            QtCore.Qt.WindowStaysOnTopHint
+        )
+        self.setAttribute(QtCore.Qt.WA_TranslucentBackground, True)
+        self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
+
+        layout = QtWidgets.QHBoxLayout(self)
+        layout.setContentsMargins(18, 10, 10, 10)  # 左边给绿点
+
+        self.label = QtWidgets.QLabel()
+        self.label.setTextFormat(QtCore.Qt.RichText)
+        self.label.setStyleSheet(u"""
+            QLabel {
+                background-color: rgba(0, 0, 0, 190);
+                border-radius: 4px;
+                padding: 6px 8px;
+                font-family: Segoe UI, Arial;
+                font-size: 12px;
+                color: #EEEEEE;
+            }
+        """)
+        layout.addWidget(self.label)
+
+        self._opacity_effect = QtWidgets.QGraphicsOpacityEffect(self)
+        self.setGraphicsEffect(self._opacity_effect)
+
+        self._anim = QtCore.QPropertyAnimation(self._opacity_effect, b"opacity", self)
+        self._anim.setDuration(1200)
+        self._anim.setEasingCurve(QtCore.QEasingCurve.InQuad)
+        self._anim.finished.connect(self.hide)
+
+    def paintEvent(self, event):
+        # 左侧画实心绿点
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.setBrush(QtGui.QColor(0, 255, 0))
+        painter.drawEllipse(QtCore.QPoint(10, 10), 10, 10)
+        super(BoneInfoOverlay, self).paintEvent(event)
+
+    def show_info(self, html_text, screen_x, screen_y):
+        # 单例复用：只更新内容和位置
+        try:
+            self._anim.stop()
+        except RuntimeError:
+            return
+
+        self.label.setText(html_text)
+        self.adjustSize()
+
+        # 绿点中心对齐到 screen_x/y
+        self.move(int(screen_x - 10), int(screen_y - 10))
+
+        self._opacity_effect.setOpacity(1.0)
+        self.show()
+
+        self._anim.setStartValue(1.0)
+        self._anim.setEndValue(0.0)
+        self._anim.start()
+
+
+# ----------------------------------------------------------------------
+# 视图 / 鼠标坐标
+# ----------------------------------------------------------------------
+def _get_active_view():
+    """
+    使用 API2.0 获取当前 3D 视图和对应 QWidget
+    """
+    view = omui2.M3dView.active3dView()
+    widget_ptr = view.widget()
+    if widget_ptr is None:
+        return view, None
+    widget = shiboken6.wrapInstance(int(widget_ptr), QtWidgets.QWidget)
+    return view, widget
+
+
+def _get_scene_pos_from_mouse():
+    """
+    鼠标屏幕坐标 -> 当前视口坐标 (左下为原点，用于 view.viewToWorld)
+    """
+    view, widget = _get_active_view()
+    if widget is None:
+        return None
+
     view_height = view.portHeight()
-    QWidget_view = shiboken6.wrapInstance(int(view.widget()), QtWidgets.QWidget)
     global_pos = QtGui.QCursor.pos()
-    local_pos = QWidget_view.mapFromGlobal(global_pos)
+    local_pos = widget.mapFromGlobal(global_pos)
     return local_pos.x(), view_height - local_pos.y()
 
 
 # ----------------------------------------------------------------------
-# RayCast: 根据鼠标位置获取 faceID（带缓存）
+# 射线选面（API 1.0）
 # ----------------------------------------------------------------------
 def getFaceIDbyMouseCursor(mesh_name):
+    """
+    使用 OpenMaya (API1.0) 射线拾取，返回 "meshShape.f[index]" 字符串
+    """
     if not cmds.objExists(mesh_name):
-        cmds.warning("Mesh '{}' does not exist.".format(mesh_name))
+        cmds.warning(u"Mesh '{}' 不存在".format(mesh_name))
+        return None
+
+    scene_pos = _get_scene_pos_from_mouse()
+    if scene_pos is None:
         return None
 
     view = omui.M3dView.active3dView()
-    scene_pos = getScenePos()
     pos = om.MPoint()
     direction = om.MVector()
     view.viewToWorld(int(scene_pos[0]), int(scene_pos[1]), pos, direction)
     pos2 = om.MFloatPoint(pos.x, pos.y, pos.z)
 
-    # ------ 缓存 MFnMesh + DagPath（API1.0） ------
-    global _mesh_dag_cache
-    cache = _mesh_dag_cache.get(mesh_name)
-    if cache is not None:
-        dag_path, fn_mesh = cache
-    else:
-        selection_list = om.MSelectionList()
-        selection_list.add(mesh_name)
-        dag_path = om.MDagPath()
-        selection_list.getDagPath(0, dag_path)
-
-        # transform -> shape
-        if dag_path.apiType() == om.MFn.kTransform:
-            dag_path.extendToShape()
-
-        fn_mesh = om.MFnMesh(dag_path)
-        _mesh_dag_cache[mesh_name] = (dag_path, fn_mesh)
+    sel_list = om.MSelectionList()
+    sel_list.add(mesh_name)
+    dag_path = om.MDagPath()
+    sel_list.getDagPath(0, dag_path)
+    if dag_path.apiType() == om.MFn.kTransform:
+        dag_path.extendToShape()
+    fn_mesh = om.MFnMesh(dag_path)
 
     hit_point = om.MFloatPoint()
     hit_face_util = om.MScriptUtil()
@@ -116,7 +189,7 @@ def getFaceIDbyMouseCursor(mesh_name):
     )
 
     if not intersection:
-        cmds.warning('No intersection found with mesh.')
+        cmds.warning(u"射线没有击中模型")
         return None
 
     hit_face = hit_face_util.getInt(hit_face_ptr)
@@ -124,469 +197,288 @@ def getFaceIDbyMouseCursor(mesh_name):
 
 
 # ----------------------------------------------------------------------
-# SkinCluster / Mesh API2 缓存工具
+# API2.0：高性能最大权重骨骼查询
 # ----------------------------------------------------------------------
-def _get_skincluster_for_mesh(mesh_name):
+def get_max_influence_api2(face_id, skin_name):
     """
-    mesh_name -> skinCluster 名称（带缓存）
-    """
-    global _skincluster_cache
-    sc = _skincluster_cache.get(mesh_name)
-    if sc and cmds.objExists(sc):
-        return sc
-
-    sc = mel.eval('findRelatedSkinCluster("{}");'.format(mesh_name))
-    if sc:
-        _skincluster_cache[mesh_name] = sc
-        return sc
-    return None
-
-
-def _get_mesh_dag_api2(mesh_name):
-    """
-    mesh_name -> MDagPath(api2)，指向 shape（用于 getWeights）
-    """
-    global _mesh_dag2_cache
-    dag = _mesh_dag2_cache.get(mesh_name)
-    if dag is not None:
-        return dag
-
-    sel = om2.MSelectionList()
-    try:
-        sel.add(mesh_name)
-    except:
-        return None
-
-    dag = sel.getDagPath(0)
-    # transform -> shape
-    if dag.apiType() == om2.MFn.kTransform:
-        dag = dag.extendToShape()
-
-    _mesh_dag2_cache[mesh_name] = dag
-    return dag
-
-
-def _get_skin_fn_api2(skin_name):
-    """
-    skinCluster 名称 -> MFnSkinCluster(api2)（带缓存）
-    """
-    global _skin_fn2_cache
-    fn_skin = _skin_fn2_cache.get(skin_name)
-    if fn_skin is not None:
-        return fn_skin
-
-    sel = om2.MSelectionList()
-    try:
-        sel.add(skin_name)
-    except:
-        return None
-
-    skin_obj = sel.getDependNode(0)
-    try:
-        fn_skin = oma2.MFnSkinCluster(skin_obj)
-    except:
-        return None
-
-    _skin_fn2_cache[skin_name] = fn_skin
-    return fn_skin
-
-
-# ----------------------------------------------------------------------
-# 根据 face 查询最大影响骨骼（API2 + getWeights，核心提速点）
-# ----------------------------------------------------------------------
-def getMaxInfluenceByFace(face_id, skin_name):
-    """
-    使用 maya.api.OpenMaya + MFnSkinCluster.getWeights 做批量查询：
-    - face_id: 例如 "pSphere1.f[10]"
-    - skin_name: skinCluster 名称
-
-    返回：最大影响骨骼名称（partialPathName），找不到返回 None
+    使用 MFnSkinCluster.getWeights 查询 face 上最大权重的骨骼
+    返回: (bone_name, bone_dagPath(API2.0))
     """
     if not face_id or not skin_name:
-        return None
+        return None, None
 
     try:
-        mesh_name = face_id.split('.')[0]
-        face_index = int(face_id.split('[')[-1].split(']')[0])
+        obj_part, comp = face_id.split('.f[')
+        face_index = int(comp.rstrip(']'))
     except Exception:
-        return None
+        cmds.warning(u"face_id 解析失败: {}".format(face_id))
+        return None, None
 
-    if not cmds.objExists(mesh_name):
-        return None
+    sel = om2.MSelectionList()
+    try:
+        sel.add(obj_part)
+        dag_path = sel.getDagPath(0)
+    except Exception as e:
+        cmds.warning(u"获取 mesh DagPath 失败: {} -> {}".format(obj_part, e))
+        return None, None
 
-    # 获取 mesh DagPath(api2)
-    dag_path = _get_mesh_dag_api2(mesh_name)
-    if dag_path is None:
-        return None
+    if dag_path.apiType() == om2.MFn.kTransform:
+        dag_path.extendToShape()
 
     try:
         fn_mesh = om2.MFnMesh(dag_path)
-    except Exception:
-        return None
-
-    # face -> 顶点索引列表
-    try:
         vtx_ids = fn_mesh.getPolygonVertices(face_index)
-    except Exception:
-        vtx_ids = []
+    except Exception as e:
+        cmds.warning(u"获取多边形顶点失败: face {} -> {}".format(face_index, e))
+        return None, None
+
     if not vtx_ids:
-        return None
+        return None, None
 
-    # 获取 MFnSkinCluster(api2)
-    fn_skin = _get_skin_fn_api2(skin_name)
-    if fn_skin is None:
-        return None
+    sel_skin = om2.MSelectionList()
+    try:
+        sel_skin.add(skin_name)
+        skin_obj = sel_skin.getDependNode(0)
+        fn_skin = oma2.MFnSkinCluster(skin_obj)
+    except Exception as e:
+        cmds.warning(u"创建 MFnSkinCluster 失败: {}".format(e))
+        return None, None
 
-    # 构建组件：这些顶点组成的 kMeshVertComponent
-    fn_comp = om2.MFnSingleIndexedComponent()
-    comp = fn_comp.create(om2.MFn.kMeshVertComponent)
-    fn_comp.addElements(vtx_ids)
+    comp_fn = om2.MFnSingleIndexedComponent()
+    comp = comp_fn.create(om2.MFn.kMeshVertComponent)
+    comp_fn.addElements(vtx_ids)
 
     try:
-        # weights: MDoubleArray，长度 = 顶点数 * influence_count
-        # influence_count: 影响骨骼个数
-        weights, influence_count = fn_skin.getWeights(dag_path, comp)
-    except Exception:
-        return None
-
-    if not weights or influence_count <= 0:
-        return None
-
-    # 在所有 (vertex, influence) 组合中，找到整体最大权重对应的 influence 索引
-    max_w = -1.0
-    max_inf_index = -1
-
-    for i, w in enumerate(weights):
-        if w > max_w:
-            max_w = w
-            max_inf_index = i % influence_count
-
-    if max_inf_index < 0:
-        return None
-
-    try:
+        weights, inf_count = fn_skin.getWeights(dag_path, comp)
         inf_paths = fn_skin.influenceObjects()
-    except Exception:
-        return None
+    except Exception as e:
+        cmds.warning(u"读取 skinCluster 权重失败: {}".format(e))
+        return None, None
 
-    if max_inf_index >= len(inf_paths):
-        return None
+    if not weights or not inf_paths or inf_count <= 0:
+        return None, None
 
-    # 返回 partialPathName，后面既能给 artAttrSkinPaintCtx 用，也能给 HUD 用
-    return inf_paths[max_inf_index].partialPathName()
+    per_inf_max = [0.0] * len(inf_paths)
+    for i, w in enumerate(weights):
+        inf_idx = i % inf_count
+        if w > per_inf_max[inf_idx]:
+            per_inf_max[inf_idx] = w
+
+    max_idx = max(range(len(inf_paths)), key=lambda idx: per_inf_max[idx])
+    bone_path = inf_paths[max_idx]
+    bone_name = bone_path.partialPathName()
+    return bone_name, bone_path
 
 
 # ----------------------------------------------------------------------
-# 计算骨骼在屏幕上的位置 (bone world pos -> screen pos) - API1.0
+# 屏幕坐标（API 2.0 worldToView）
 # ----------------------------------------------------------------------
-def getBoneScreenPos(joint_name):
+def get_bone_screen_pos(bone_dag_path):
     """
-    返回骨骼在屏幕上的全局坐标 (screen_x, screen_y)
-    使用 OpenMaya API1.0 的 M3dView.worldToView(MPoint, short&, short&)
+    joint 世界坐标 -> 当前视口屏幕坐标 (global x,y)
+    用于小绿点 + HUD 定位
     """
     try:
+        view, widget = _get_active_view()
+        if widget is None:
+            return None
+
+        fn_trans = om2.MFnTransform(bone_dag_path)
+        world_vec = fn_trans.translation(om2.MSpace.kWorld)
+        world_pt = om2.MPoint(world_vec)
+
+        x, y, _ = view.worldToView(world_pt)
+        view_h = view.portHeight()
+
+        local_pos = QtCore.QPoint(int(x), int(view_h - y))
+        global_pos = widget.mapToGlobal(local_pos)
+        return global_pos.x(), global_pos.y()
+    except Exception as e:
+        sys.stderr.write("Quick_skin: get_bone_screen_pos failed: %s\n" % e)
+        return None
+
+
+# ----------------------------------------------------------------------
+# 相机旋转枢轴：**关键修正点**（全部使用 API 1.0）
+# ----------------------------------------------------------------------
+def update_camera_tumble_pivot(bone_dag_path):
+    """
+    将当前视口相机的 Tumble Pivot 设置到指定骨骼世界坐标。
+    这里完全使用 API1.0 (OpenMaya/OpenMayaUI)，避免签名问题。
+    """
+    try:
+        # 1) 把 API2.0 的 DagPath 转成名字，再走 API1.0
+        try:
+            bone_name = bone_dag_path.fullPathName()
+        except Exception:
+            bone_name = str(bone_dag_path)
+
         sel = om.MSelectionList()
-        sel.add(joint_name)
-        dag = om.MDagPath()
-        sel.getDagPath(0, dag)
-    except:
-        return None
+        sel.add(bone_name)
+        bone_dag1 = om.MDagPath()
+        sel.getDagPath(0, bone_dag1)
 
-    try:
-        fn_trans = om.MFnTransform(dag)
-    except:
-        return None
+        fn_t = om.MFnTransform(bone_dag1)
+        world_vec = fn_t.translation(om.MSpace.kWorld)
+        world_pt = om.MPoint(world_vec)
 
-    world_vec = fn_trans.translation(om.MSpace.kWorld)
-    world_point = om.MPoint(world_vec.x, world_vec.y, world_vec.z)
+        # 2) 获取当前视口相机 (API1.0 签名：getCamera(MDagPath&))
+        view = omui.M3dView.active3dView()
+        cam_dag1 = om.MDagPath()
+        view.getCamera(cam_dag1)
 
-    view = omui.M3dView.active3dView()
+        fn_cam1 = om.MFnCamera(cam_dag1)
+        fn_cam1.setTumblePivot(world_pt)   # 真正设置 Tumble Pivot
 
-    # 使用 short 指针，符合 API 签名
-    util_x = om.MScriptUtil()
-    util_x.createFromInt(0)
-    x_ptr = util_x.asShortPtr()
+        cam_shape_name = cam_dag1.fullPathName()
 
-    util_y = om.MScriptUtil()
-    util_y.createFromInt(0)
-    y_ptr = util_y.asShortPtr()
-
-    view.worldToView(world_point, x_ptr, y_ptr)
-
-    x = om.MScriptUtil(x_ptr).asShort()
-    y = om.MScriptUtil(y_ptr).asShort()
-
-    widget = shiboken6.wrapInstance(int(view.widget()), QtWidgets.QWidget)
-    # worldToView 的 y 原点在左下，Qt 在左上
-    global_pos = widget.mapToGlobal(QtCore.QPoint(int(x), widget.height() - int(y)))
-    return global_pos.x(), global_pos.y()
-
-
-# ----------------------------------------------------------------------
-# HUD 类：绿色圆点 + 文本标签（单实例，无动画）
-# ----------------------------------------------------------------------
-class InfluenceHUD(QtWidgets.QWidget):
-    def __init__(self, parent=None):
-        super(InfluenceHUD, self).__init__(parent)
-
-        # 关键：设置固定 objectName，方便跨脚本版本清理旧实例
-        self.setObjectName("GG_QuickSkinInfluenceHUD")
-
-        # 无边框 & 置顶 & 透明背景
-        self.setWindowFlags(
-            QtCore.Qt.FramelessWindowHint |
-            QtCore.Qt.WindowStaysOnTopHint |
-            QtCore.Qt.ToolTip
-        )
-        self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
-        self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents)
-
-        # 布局：左边预留小绿点，右边文本
-        layout = QtWidgets.QHBoxLayout(self)
-        layout.setContentsMargins(20, 14, 8, 10)
-
-        self.label = QtWidgets.QLabel()
-        self.label.setStyleSheet("""
-            QLabel {
-                background-color: rgba(0, 0, 0, 220);
-                border-radius: 6px;
-                padding: 8px 10px;
-                font-family: Segoe UI, Arial;
-                font-size: 13px;
-            }
-        """)
-        layout.addWidget(self.label)
-
-    def showInfo(self, bone_name, mode_text, screen_x, screen_y):
-        """
-        在给定屏幕位置显示 HUD
-        :param bone_name: 骨骼名（会自动取短名）
-        :param mode_text: 笔刷模式文本（例如 REPLACE(1.0) / ADD(0.025)）
-        :param screen_x: 屏幕 X
-        :param screen_y: 屏幕 Y
-        """
-        short_name = bone_name.split('|')[-1]
-
-        html = (
-            u"<div style='font-weight:bold; font-size:16px; color:#FFDD55;'>{bone}</div>"
-            u"<div style='font-weight:600; font-size:13px; color:#66CCFF; margin-top:2px;'>{mode}</div>"
-        ).format(bone=short_name, mode=mode_text)
-
-        self.label.setText(html)
-        self.adjustSize()
-
-        # 让左侧绿点大致对齐到骨骼所在屏幕位置
-        self.move(int(screen_x - 16), int(screen_y - 16))
-        self.show()
-
-    def paintEvent(self, event):
-        # 先画左侧小绿点，再交给父类绘制 label
-        painter = QtGui.QPainter(self)
-        painter.setRenderHint(QtGui.QPainter.Antialiasing)
-
-        painter.setBrush(QtGui.QBrush(QtGui.QColor(0, 255, 0)))
-        painter.setPen(QtCore.Qt.NoPen)
-        painter.drawEllipse(QtCore.QPoint(10, 14), 5, 5)  # 小圆点
-
-        super(InfluenceHUD, self).paintEvent(event)
-
-
-# ----------------------------------------------------------------------
-# 内部工具：确保全局只存在一个 HUD（清理旧的残留窗口）
-# ----------------------------------------------------------------------
-def _get_or_create_hud():
-    """
-    保证 Qt 层只存在一个 GG_QuickSkinInfluenceHUD：
-    - 先扫描所有 topLevelWidgets，关闭并 deleteLater 掉旧的；
-    - 然后创建/复用当前脚本的 _hud_instance 与 _hud_timer。
-    """
-    global _hud_instance, _hud_timer
-
-    app = QtWidgets.QApplication.instance()
-    if app:
-        for w in app.topLevelWidgets():
+        # 3) 确保相机不启用“本地轴枢轴”（usePivotAsLocalSpace）
+        if cmds.attributeQuery("usePivotAsLocalSpace", node=cam_shape_name, exists=True):
             try:
-                if w.objectName() == "GG_QuickSkinInfluenceHUD":
-                    # 如果是旧脚本残留的 HUD，先关掉
-                    w.close()
-                    w.deleteLater()
-            except:
+                cmds.setAttr(cam_shape_name + ".usePivotAsLocalSpace", 0)
+            except Exception:
                 pass
 
-    view = omui.M3dView.active3dView()
-    parent = shiboken6.wrapInstance(int(view.widget()), QtWidgets.QWidget)
+        # 4) 确保 tumbleContext 使用 Tumble Pivot 模式 (localTumble=0)
+        if cmds.contextInfo("tumbleContext", exists=True):
+            try:
+                cmds.tumbleCtx("tumbleContext", e=True, localTumble=0)
+            except Exception:
+                pass
 
-    # 创建新的 HUD 实例（当前脚本持有的单例）
-    if _hud_instance is None:
-        _hud_instance = InfluenceHUD(parent)
-    else:
-        # 运行中重载脚本时，旧 _hud_instance 可能已失效
-        if not shiboken6.isValid(_hud_instance):
-            _hud_instance = InfluenceHUD(parent)
-        else:
-            if _hud_instance.parent() is not parent:
-                _hud_instance.setParent(parent)
-
-    # 创建 / 复用计时器
-    if _hud_timer is None or not shiboken6.isValid(_hud_timer):
-        _hud_timer = QtCore.QTimer(_hud_instance)
-        _hud_timer.setSingleShot(True)
-        _hud_timer.timeout.connect(_hud_instance.hide)
-
-    return _hud_instance, _hud_timer
+    except Exception as e:
+        sys.stderr.write("Quick_skin: update_camera_tumble_pivot failed: %s\n" % e)
 
 
 # ----------------------------------------------------------------------
-# 显示 HUD：骨骼位置 + 笔刷模式（单例 + QTimer 控制）
-# ----------------------------------------------------------------------
-def showInfluenceHud(max_inf, paint_operation):
-    """
-    根据骨骼名和笔刷模式，在视口中对应骨骼位置显示 HUD：
-    - Qt 级别清理所有旧 HUD；
-    - 使用当前脚本的单例 HUD + QTimer；
-    - 多次点击只会刷新同一个 UI，不会出现第二个。
-    """
-    hud, hud_timer = _get_or_create_hud()
-
-    # 计算骨骼屏幕位置
-    screen_pos = getBoneScreenPos(max_inf)
-    if not screen_pos:
-        # 若获取失败，退化到鼠标位置（保证不崩）
-        x, y = getScenePos()
-        view = omui.M3dView.active3dView()
-        widget = shiboken6.wrapInstance(int(view.widget()), QtWidgets.QWidget)
-        global_pos = widget.mapToGlobal(QtCore.QPoint(int(x), widget.height() - int(y)))
-        screen_pos = (global_pos.x(), global_pos.y())
-
-    screen_x, screen_y = screen_pos
-
-    # 将 paint_operation 转为更友好的文本
-    if paint_operation == 'absolute':
-        mode_text = u"REPLACE (1.0)"
-    elif paint_operation in ('additive', 'add'):
-        mode_text = u"ADD (0.025)"
-    else:
-        mode_text = u"MODE: {}".format(paint_operation)
-
-    # 显示/刷新 HUD（单实例）
-    hud.showInfo(max_inf, mode_text, screen_x, screen_y)
-
-    # QTimer 控制隐藏：重复点击只会重置计时
-    hud_timer.stop()
-    hud_timer.start(1200)  # 1.2 秒后隐藏
-
-
-# ----------------------------------------------------------------------
-# Paint Skin Weights 工具模式切换
+# Skin Paint 工具：保持你原来的逻辑（自动切换加/替）
 # ----------------------------------------------------------------------
 def editSkinWeightTools():
-    """
-    打开或切换到 Paint Skin Weights 工具，并在 absolute/additive 之间切换。
-    返回切换后的模式字符串：'absolute' 或 'additive'
-    """
     current_context = cmds.currentCtx()
     if current_context != 'artAttrSkinContext':
-        # 使用 Options 版本，可以保证 context 被创建
         mel.eval('ArtPaintSkinWeightsToolOptions')
 
     paint_operation = cmds.artAttrSkinPaintCtx('artAttrSkinContext', query=True, sao=True)
-    new_operation = paint_operation
-
     if paint_operation == 'additive':
         cmds.artAttrSkinPaintCtx('artAttrSkinContext', edit=True, sao='absolute', value=1.0)
-        new_operation = 'absolute'
     elif paint_operation == 'absolute':
         cmds.artAttrSkinPaintCtx('artAttrSkinContext', edit=True, sao='additive', value=0.025)
-        new_operation = 'additive'
 
-    return new_operation
+
+def callPaintListWindowWithSetInfluence(max_inf):
+    if not max_inf:
+        return
+
+    mel.eval('artSkinInflListChanging "{}" 1'.format(max_inf))
+    mel.eval('artSkinInflListChanged artAttrSkinPaintCtx')
+    cmds.headsUpMessage('{}'.format(max_inf), time=1)
+
+    try:
+        cmds.artAttrSkinPaintCtx('artAttrSkinContext', edit=True, inf=max_inf)
+    except Exception:
+        pass
+
+
+def _build_brush_info_html():
+    mode_str = u"未知"
+    try:
+        op = cmds.artAttrSkinPaintCtx('artAttrSkinContext', query=True, sao=True)
+        val = cmds.artAttrSkinPaintCtx('artAttrSkinContext', query=True, value=True)
+        if op == 'absolute':
+            mode_str = u"REPLACE<span style='font-size:11px; color:#AAAAAA;'> ({:.3f})</span>".format(val)
+        elif op == 'additive':
+            mode_str = u"ADD<span style='font-size:11px; color:#AAAAAA;'> ({:.3f})</span>".format(val)
+        else:
+            mode_str = u"{}<span style='font-size:11px; color:#AAAAAA;'> ({:.3f})</span>".format(op, val)
+    except Exception:
+        pass
+    return mode_str
 
 
 # ----------------------------------------------------------------------
-# 更新 ArtSkinInfluence 列表并显示 HUD
+# 总流程：选中 -> 射线选面 -> 找最大权重骨骼 -> 刷权 -> HUD -> 相机枢轴
 # ----------------------------------------------------------------------
-def callPaintListWindowWithSetInfluence(max_inf, paint_operation):
-    if max_inf:
-        mel.eval('artSkinInflListChanging "{}" 1'.format(max_inf))
-        mel.eval('artSkinInflListChanged artAttrSkinPaintCtx')
-        # 用我们自己的 HUD 替代 headsUpMessage
-        showInfluenceHud(max_inf, paint_operation)
+def mainFunc():
+    global _overlay_widget
 
+    sel = cmds.ls(selection=True, long=True, fl=True)
+    if not sel:
+        cmds.warning(u'请先选择一个蒙皮模型或其组件')
+        return
 
-# ----------------------------------------------------------------------
-# 主逻辑：根据鼠标点击设置当前绘制骨骼
-# ----------------------------------------------------------------------
-def UseInfluenceSetSkinList(mesh_name):
-    face_id = getFaceIDbyMouseCursor(mesh_name)
+    first = sel[0]
+
+    # transform / shape / component 统一处理
+    if '.' in first:
+        base = first.split('.')[0]
+    else:
+        base = first
+
+    if not cmds.objExists(base):
+        cmds.warning(u"选中的对象不存在: {}".format(base))
+        return
+
+    node_type = cmds.nodeType(base)
+    if node_type == 'mesh':
+        mesh_shape = cmds.ls(base, long=True)[0]
+        parents = cmds.listRelatives(mesh_shape, parent=True, fullPath=True) or []
+        mesh_transform = parents[0] if parents else None
+    else:
+        mesh_transform = cmds.ls(base, long=True)[0]
+        shapes = cmds.listRelatives(mesh_transform, shapes=True, noIntermediate=True, fullPath=True) or []
+        mesh_shape = None
+        for s in shapes:
+            if cmds.nodeType(s) == 'mesh':
+                mesh_shape = s
+                break
+
+    if not mesh_transform or not mesh_shape:
+        cmds.warning(u"选中的对象没有有效的 mesh 形节点")
+        return
+
+    # 1) 射线拾取面
+    face_id = getFaceIDbyMouseCursor(mesh_shape)
     if not face_id:
         return
 
-    # 使用缓存获取 skinCluster
-    skin = _get_skincluster_for_mesh(mesh_name)
+    # 2) 找 skinCluster
+    skin = mel.eval('findRelatedSkinCluster("{}");'.format(mesh_transform))
     if not skin:
-        cmds.warning("No skin cluster found for '{}'".format(mesh_name))
+        cmds.warning(u"未找到与 '{}' 关联的 skinCluster".format(mesh_transform))
         return
 
-    # 使用 API2 + getWeights 查询最大影响骨骼
-    max_inf = getMaxInfluenceByFace(face_id, skin)
-    if not max_inf:
-        cmds.warning("Could not determine max influence for face '{}'".format(face_id))
+    # 3) 高性能查询最大权重骨骼
+    bone_name, bone_dag = get_max_influence_api2(face_id, skin)
+    if not bone_name or bone_dag is None:
+        cmds.warning(u"无法获取最大权重骨骼")
         return
 
-    # 切换/设置 Paint Skin Weights 工具 & 模式
-    new_mode = editSkinWeightTools()
-    # 更新影响列表 & 显示 HUD
-    callPaintListWindowWithSetInfluence(max_inf, new_mode)
-    # 原功能：高亮选中影响
+    # 4) 打开 / 切换权重刷，并设置影响
+    editSkinWeightTools()
+    callPaintListWindowWithSetInfluence(bone_name)
     mel.eval('artSkinRevealSelected artAttrSkinPaintCtx')
 
+    # 5) 计算骨骼屏幕位置
+    screen_pos = get_bone_screen_pos(bone_dag)
 
-# ----------------------------------------------------------------------
-# 入口：处理选择并调用（支持组件模式）
-# ----------------------------------------------------------------------
-def mainFunc():
-    """
-    支持两种选择方式：
-    1）Transform / Mesh 物体模式；
-    2）组件模式（面 / 点 / 边），内部自动解析其所属 mesh。
-    """
-    sel = cmds.ls(selection=True)
-    if not sel:
-        cmds.warning('No selection.')
-        return
+    # 6) 相机旋转枢轴设置到该骨骼
+    update_camera_tumble_pivot(bone_dag)
 
-    # objectsOnly=True 可以从组件选择中得到对应 transform/shape
-    objs = cmds.ls(selection=True, objectsOnly=True) or []
+    # 7) HUD：绿色点 + 骨骼名 + 笔刷模式
+    display_name = bone_name.split('|')[-1]
+    brush_info = _build_brush_info_html()
+    html = (
+        u"<div style='font-weight:bold; font-size:15px; color:#FFDD00;'>{bone}</div>"
+        u"<div style='font-weight:900; font-size:13px; color:#FF5555; margin-top:2px;'>{mode}</div>"
+    ).format(bone=display_name, mode=brush_info)
 
-    # 优先使用 objectsOnly 的结果，保证组件模式可用
-    target = objs[0] if objs else sel[0]
-
-    node_type = cmds.nodeType(target)
-    mesh_name = None
-
-    if node_type == 'transform':
-        # transform -> 查有没有 mesh shape
-        shapes = cmds.listRelatives(target, shapes=True, noIntermediate=True, fullPath=True) or []
-        if shapes and cmds.nodeType(shapes[0]) == 'mesh':
-            mesh_name = target
-    elif node_type == 'mesh':
-        # shape -> 找到它的 transform
-        parents = cmds.listRelatives(target, parent=True, fullPath=True) or []
-        mesh_name = parents[0] if parents else target
+    if screen_pos:
+        if _overlay_widget is None or not shiboken6.isValid(_overlay_widget):
+            _overlay_widget = BoneInfoOverlay()
+        _overlay_widget.show_info(html, screen_pos[0], screen_pos[1])
     else:
-        # 兜底：可能是 "pSphere1.f[10]" 这种字符串
-        base = target.split('.')[0]
-        if cmds.objExists(base):
-            mesh_name = base
-
-    if not mesh_name:
-        cmds.warning('Selection is not a skinned mesh.')
-        return
-
-    UseInfluenceSetSkinList(mesh_name)
+        cmds.headsUpMessage(u"{} | {}".format(display_name, brush_info), time=1.0)
 
 
-# ----------------------------------------------------------------------
-# 执行
-# ----------------------------------------------------------------------
+
 mainFunc()
