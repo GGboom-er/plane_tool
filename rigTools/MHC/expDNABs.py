@@ -3,7 +3,7 @@ from dna import DataLayer_All, FileStream, Status, BinaryStreamReader, BinaryStr
 import maya.cmds as cmds
 import pymel.core as pm
 import json
-from dnacalib import (
+from dnacalib2 import (
     CommandSequence,
     DNACalibDNAReader,
     SetNeutralJointRotationsCommand,
@@ -452,8 +452,7 @@ def generate_blendshape_delta_target( target_expr_name, source_expr_names, sourc
 
     print("? 完成差值替换: {}".format(target_expr_name))
 
-if __name__ == '__main__':
-CHARACTER_DNA = r'U:\ywm\MHC\Downloaded\DHI\5jd1XPwC_asset\1k\asset_source\MetaHumans\yy\SourceAssets\yy.dna'
+CHARACTER_DNA = r'U:\ywm\ysj\mihouwang\mhc\mihouwang.dna'
 reader = load_dna_reader(CHARACTER_DNA)
 calibrated = DNACalibDNAReader(reader)
 AUlist = combine_lists_to_dict(calibrated.getPSDRowIndices(), calibrated.getPSDColumnIndices())
