@@ -1,44 +1,52 @@
 """
-Matrix Ribbon System (MRS) - Smart Reloader
-Reloads code and plugin without forcing a new scene.
+Matrix Ribbon System (MRS) - NUCLEAR RELOADER
+Version: 15.0.2
 """
 import maya.cmds as cmds
+import maya.mel as mel
 import sys
 import os
 import importlib
+import gc
 
 def run():
-    print("\n--- MRS RELOAD START ---")
+    print("\n" + "#"*60)
+    print("MRS ULTIMATE RELOAD (New Scene Mode)")
+    print("#"*60)
 
-    # 1. Close UI
+    # 1. Force New Scene (Releases ALL plugin and file locks)
+    cmds.file(new=True, f=True)
+    
+    # 2. Close UI
     if cmds.window("MatrixRibbonToolUI", exists=True):
         cmds.deleteUI("MatrixRibbonToolUI")
 
-    # 2. Try Unload Plugin (Requires scene to be clean of MRS nodes)
-    nodes = cmds.ls(type="matrixRibbonMesh")
-    if nodes:
-        print(f"[Warning] Scene contains {len(nodes)} matrixRibbonMesh nodes. Plugin cannot be unloaded.")
-        print(" -> Please delete these nodes and flush undo to reload the plugin binary.")
-    else:
-        cmds.flushUndo() # Essential
-        if cmds.pluginInfo("matrixRibbonMesh", q=True, loaded=True):
-            try:
-                cmds.unloadPlugin("matrixRibbonMesh")
-                print("[Success] Plugin binary unloaded.")
-            except Exception as e:
-                print(f"[Error] Plugin unload failed: {e}")
+    # 3. Flush Undo and GC
+    cmds.flushUndo()
+    gc.collect()
 
-    # 3. Reload Python Modules
-    modules = ["utils", "builder", "manager", "matrix_ribbon_system", "mrs_tool", "py_matrix_ribbon"]
-    for m in modules:
-        if m in sys.modules:
-            importlib.reload(sys.modules[m])
-            print(f"[Success] Module reloaded: {m}")
+    # 4. Unload Plugin
+    plugin_name = "py_matrix_ribbon.py"
+    if cmds.pluginInfo("matrixRibbonMesh", q=True, loaded=True):
+        try:
+            # Force unload via MEL
+            mel.eval(f'unloadPlugin -force "{plugin_name}"')
+            print(f"[Reloader] Unloaded {plugin_name}")
+        except Exception as e:
+            print(f"[Reloader Error] Failed to unload: {e}")
 
-    # 4. Re-Launch
-    import mrs_tool
-    mrs_tool.show()
-    print("--- MRS RELOAD COMPLETE ---\n")
+    # 5. Clear sys.modules
+    to_del = [m for m in sys.modules if m.startswith("matrix_ribbon") or m in ["builder", "manager", "utils", "mrs_tool", "py_matrix_ribbon"]]
+    for m in to_del:
+        if m in sys.modules: del sys.modules[m]
+
+    # 6. Re-launch
+    try:
+        import mrs_tool
+        mrs_tool.show()
+        print("[Reloader] MRS System Rebooted.")
+    except Exception as e:
+        print(f"[Launch Error] {e}")
 
 if __name__ == "__main__":
     run()

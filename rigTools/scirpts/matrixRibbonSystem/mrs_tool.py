@@ -55,17 +55,22 @@ def show_error_dialog(message, details=""):
 def force_reload_plugin():
     PLUGIN_NAME = "py_matrix_ribbon.py"
     PLUGIN_PATH = os.path.join(CURRENT_DIR, PLUGIN_NAME)
-    if cmds.pluginInfo("matrixRibbonMesh", query=True, loaded=True):
+    
+    # 1. Unload if loaded
+    if cmds.pluginInfo(PLUGIN_NAME, query=True, loaded=True):
         try:
-            print(f"[MRS] Attempting to unload plugin: {PLUGIN_NAME}")
-            cmds.unloadPlugin("matrixRibbonMesh")
+            print(f"[MRS] Unloading existing plugin: {PLUGIN_NAME}")
+            cmds.unloadPlugin(PLUGIN_NAME)
         except Exception as e:
-            print(f"[MRS] Warning: Could not unload plugin (Nodes in use?): {e}")
-            return
+            print(f"[MRS] CRITICAL WARNING: Could not unload plugin (Nodes in use?): {e}")
+            return # If we can't unload, we likely can't reload the new code effectively
+
+    # 2. Load
     try:
         if os.path.exists(PLUGIN_PATH):
+            print(f"--- Loading Plugin from: {PLUGIN_PATH} ---")
             cmds.loadPlugin(PLUGIN_PATH)
-            print(f"[MRS] Plugin reloaded from: {PLUGIN_PATH}")
+            # Success message is printed by the plugin itself (initializePlugin)
         else:
             print(f"[MRS] Error: Plugin file not found: {PLUGIN_PATH}")
     except Exception as e:
@@ -73,7 +78,7 @@ def force_reload_plugin():
 
 class MatrixRibbonTool(QtWidgets.QWidget):
     WINDOW_NAME = "MatrixRibbonToolUI"
-    TITLE = "Matrix Ribbon System V7.2"
+    TITLE = "Matrix Ribbon System V7.5"
     
     def __init__(self, parent=None):
         super(MatrixRibbonTool, self).__init__(parent)
@@ -97,7 +102,7 @@ class MatrixRibbonTool(QtWidgets.QWidget):
         layout = QtWidgets.QVBoxLayout()
         self.setLayout(layout)
         
-        header = QtWidgets.QLabel("MRS V7.2 - Optimized Matrix")
+        header = QtWidgets.QLabel("MRS V7.5 - Smart Orientation")
         header.setAlignment(QtCore.Qt.AlignCenter)
         header.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 5px; color: #DDD;")
         layout.addWidget(header)
@@ -220,6 +225,7 @@ class MatrixRibbonTool(QtWidgets.QWidget):
                 curr = children[0]
                 chain.append(curr)
             chains.append(chain)
+        
         return chains
 
     def add_selection(self):
