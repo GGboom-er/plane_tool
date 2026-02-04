@@ -1,6 +1,6 @@
 """
 Matrix Ribbon System (MRS) - Main Entry Point
-Version: 5.1.0
+Version: 5.2.0
 """
 import maya.cmds as cmds
 import os
@@ -10,27 +10,30 @@ CURRENT_DIR = os.path.dirname(__file__)
 if CURRENT_DIR not in sys.path:
     sys.path.append(CURRENT_DIR)
 
-from builder import RigBuilder
 from manager import RigManager
+import builder
+from utils import MrsNaming
 
 class RibbonRigSystem:
     def __init__(self):
-        self.builder = RigBuilder()
+        self.builder = builder.RigBuilder()
         self.manager = RigManager()
 
-    def create_preview_mesh(self, chains, width=None, hold_length=None, loop=False):
-        return self.builder.create_preview_mesh(chains, width, hold_length, loop)
+    def create_preview_mesh(self, chains, base_name="Ribbon", width=None, hold_length=None, loop=False):
+        return self.builder.create_preview_mesh(chains, base_name, width, hold_length, loop)
 
-    def bind_from_preview(self, preview_mesh, chains):
-        return self.builder.finalize_bind(preview_mesh, chains)
+    def bind_from_preview(self, preview_mesh, chains, enable_fk=True, enable_ik=True, existing_ribbon_node=None, existing_base_name=None, update_mode=False, existing_follow_mesh=None, passed_uvpin=None):
+        return self.builder.finalize_bind(preview_mesh, chains, enable_fk, enable_ik, existing_ribbon_node, existing_base_name, update_mode, existing_follow_mesh, passed_uvpin)
 
-    def swap_attachment(self, rig_set, new_mesh):
-        return self.manager.swap_attachment(rig_set, new_mesh)
+    def create_proxy_from_preview(self, preview_mesh, chains, pure_ik=False):
+        # Base Name Logic
+        base_name = "Ribbon"
+        if cmds.attributeQuery(MrsNaming.ATTR_BASE_NAME, node=preview_mesh, exists=True):
+            base_name = cmds.getAttr(f"{preview_mesh}.{MrsNaming.ATTR_BASE_NAME}")
+        
+        return self.builder.create_standalone_proxy(preview_mesh, chains, base_name, pure_ik)
 
     def remove_rig(self, rig_set, restore_pose=False):
-        """
-        Removes rig with optional pose restoration.
-        """
         return self.manager.remove_rig(rig_set, restore_pose=restore_pose)
 
     def get_all_rigs(self):
