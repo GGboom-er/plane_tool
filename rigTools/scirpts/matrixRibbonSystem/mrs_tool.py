@@ -26,6 +26,9 @@ import manager
 import matrix_ribbon_system
 from utils import MrsNaming
 
+# Global reference to prevent Garbage Collection from destroying the UI
+_mrs_window_instance = None
+
 # Force Reload
 for mod in [utils, builder, manager, matrix_ribbon_system]:
     importlib.reload(mod)
@@ -68,17 +71,11 @@ class MatrixRibbonTool(QtWidgets.QWidget):
         self.refresh_list()
         
     def build_ui(self):
-        self.setWindowTitle("MRS V8.0 - Matrix Ribbon")
+        self.setWindowTitle("Ribbon System Tools")
         self.resize(300, 450)
         self.setWindowFlags(QtCore.Qt.Window)
         
         main_lay = QtWidgets.QVBoxLayout(self)
-        
-        # Header
-        lbl = QtWidgets.QLabel("MRS V8.0 - Optimized")
-        lbl.setAlignment(QtCore.Qt.AlignCenter)
-        lbl.setStyleSheet("font-weight: bold; font-size: 14px; margin-bottom: 10px; color: #DDD;")
-        main_lay.addWidget(lbl)
         
         # Build Group
         grp_build = QtWidgets.QGroupBox("1. Build")
@@ -130,6 +127,26 @@ class MatrixRibbonTool(QtWidgets.QWidget):
         
         main_lay.addWidget(grp_man)
         main_lay.addStretch()
+
+    def _detect_parent_object(self, base_name, chains):
+        # 1. Try finding existing DCM (Update Scenario)
+        clean_base = base_name.replace(":", "_")
+        dcm_name = f"{clean_base}_Parent_DCM"
+        if cmds.objExists(dcm_name):
+            inputs = cmds.listConnections(f"{dcm_name}.inputMatrix", s=True)
+            if inputs: return inputs[0]
+        
+        # 2. Try Bone Parent (New Bind Scenario)
+        if chains:
+            root_bone = chains[0][0]
+            if cmds.objExists(root_bone):
+                parents = cmds.listRelatives(root_bone, parent=True)
+                if parents:
+                    # Verify it's not a Rig internal group
+                    p = parents[0]
+                    if not p.endswith(MrsNaming.GRP_JNT) and not p.endswith(MrsNaming.GRP_MAIN):
+                        return p
+        return None
 
     def on_preview(self):
         sel = cmds.ls(sl=True, type="transform")
@@ -193,7 +210,7 @@ class MatrixRibbonTool(QtWidgets.QWidget):
         node = None
         hist = cmds.listHistory(s_node) or []
         for h in hist:
-            if cmds.nodeType(h) == "matrixRibbonMesh":
+            if cmds.nodeType(h) == MrsNaming.NODE_PLUGIN:
                 node = h; break
         
         if not node: return show_error("Invalid Selection (No Driver Node).")
@@ -206,11 +223,14 @@ class MatrixRibbonTool(QtWidgets.QWidget):
         if cmds.attributeQuery(MrsNaming.ATTR_BASE_NAME, node=t_node, exists=True):
             base = cmds.getAttr(f"{t_node}.{MrsNaming.ATTR_BASE_NAME}")
         
+        parent_obj = self._detect_parent_object(base, chains)
+
         cmds.undoInfo(openChunk=True, chunkName="MRS Bind")
         try:
             self.mrs.bind_from_preview(t_node, chains, 
                                      self.chk_fk.isChecked(), 
-                                     self.chk_ik.isChecked())
+                                     self.chk_ik.isChecked(),
+                                     parent_object=parent_obj)
             self.refresh_list()
         except Exception as e:
             traceback.print_exc()
@@ -243,6 +263,8 @@ class MatrixRibbonTool(QtWidgets.QWidget):
             
         if not chains: return show_error("Chain Data Lost.")
         
+        parent_obj = self._detect_parent_object(base, chains)
+
         cmds.undoInfo(openChunk=True, chunkName="MRS Update")
         try:
             self.mrs.bind_from_preview(
@@ -252,7 +274,8 @@ class MatrixRibbonTool(QtWidgets.QWidget):
                 enable_ik=self.chk_ik.isChecked(),
                 update_mode=True,
                 existing_follow_mesh=follow_mod,
-                existing_base_name=base
+                existing_base_name=base,
+                parent_object=parent_obj
             )
             self.refresh_list()
         except Exception as e:
@@ -292,7 +315,7 @@ class MatrixRibbonTool(QtWidgets.QWidget):
         # Try history (Preview)
         hist = cmds.listHistory(shape) or []
         for h in hist:
-            if cmds.nodeType(h) == "matrixRibbonMesh": node = h; break
+            if cmds.nodeType(h) == MrsNaming.NODE_PLUGIN: node = h; break
             
         # Try Connection (FollowMod)
         if not node and cmds.attributeQuery(MrsNaming.ATTR_DRIVER_CONN, node=target, exists=True):
@@ -315,10 +338,17 @@ class MatrixRibbonTool(QtWidgets.QWidget):
         finally: cmds.undoInfo(closeChunk=True)
 
     def on_remove(self):
-        item = self.list_rigs.currentItem()
-        set_name = item.text() if item else utils.RigUtils.get_rig_from_selection(cmds.ls(sl=True))
+        # Priority 1: Scene Selection
+        scene_sel = cmds.ls(sl=True)
+        set_name = utils.RigUtils.get_rig_from_selection(scene_sel)
         
-        if not set_name: return cmds.warning("Select Rig.")
+        # Priority 2: UI List Selection
+        if not set_name:
+            item = self.list_rigs.currentItem()
+            if item: set_name = item.text()
+        
+        if not set_name: return cmds.warning("Select Rig (in Viewport or List).")
+        
         if QtWidgets.QMessageBox.question(self, "Remove", f"Delete {set_name}?") != QtWidgets.QMessageBox.Yes: return
         
         cmds.undoInfo(openChunk=True, chunkName="MRS Remove")
@@ -334,6 +364,7 @@ class MatrixRibbonTool(QtWidgets.QWidget):
             self.list_rigs.addItem(s)
 
 def show():
+    global _mrs_window_instance
     win = get_maya_window()
     if not win: return
     
@@ -341,9 +372,9 @@ def show():
     for w in QtWidgets.QApplication.instance().topLevelWidgets():
         if w.objectName() == MatrixRibbonTool.WINDOW_NAME: w.close()
         
-    ui = MatrixRibbonTool(parent=win)
-    ui.setObjectName(MatrixRibbonTool.WINDOW_NAME)
-    ui.show()
+    _mrs_window_instance = MatrixRibbonTool(parent=win)
+    _mrs_window_instance.setObjectName(MatrixRibbonTool.WINDOW_NAME)
+    _mrs_window_instance.show()
 
 if __name__ == "__main__":
     show()

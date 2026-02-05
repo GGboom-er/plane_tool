@@ -1,15 +1,13 @@
 """
 Matrix Ribbon System (MRS) - Utilities
 Version: 7.1.0
-Optimized: Safe OPM cleanup (prevents bone snapping), robust selection ID, correct shape naming.
 """
 import maya.cmds as cmds
 import maya.api.OpenMaya as om
 import json
+import re
 
 class MrsNaming:
-    """Centralized Naming Conventions"""
-    # Suffixes
     RIG_SET = "_Rig_Set"
     GEO_SET = "_Geo_Set"
     GRP_SET = "_Group_Set"
@@ -26,47 +24,77 @@ class MrsNaming:
     MESH_FOLLOW = "_FollowMod"
     MESH_PROXY = "_SkinClusterMod"
     
-    # Component Suffixes (Underscores included for precise stripping)
     FK_CTRL = "_FK_Ctrl"
     FK_OFFSET = "_FK_Offset"
     IK_CTRL = "_IK_Ctrl"
     IK_OFFSET = "_IK_Offset"
     UVPIN = "_uvPin"
     
-    # Attributes
     ATTR_BASE_NAME = "mrsBaseName"
     ATTR_DRIVER_CONN = "mrsDriverConnection"
     ATTR_BIND_POSE = "mrsBindPose"
     ATTR_CHAINS_DATA = "mrsChainsData"
     ATTR_STORED_U = "mrsStoredU"
     ATTR_STORED_V = "mrsStoredV"
+    
+    ATTR_SHOW_IK = "Show_IK"
+    ATTR_REVERSE_ORDER = "reverseOrder"
+    ATTR_MRS_REVERSE = "mrsReverseOrder"
+    ATTR_INHERITS_XFORM = "inheritsTransform"
+    
+    ATTR_WIDTH = "width"
+    ATTR_HOLD_LENGTH = "holdLength"
+    ATTR_LOOP = "loop"
+    ATTR_STITCH = "stitch"
+    
+    NODE_PLUGIN = "matrixRibbonMesh"
 
 class RigUtils:
     
+    NAME_PATTERN = re.compile(r"^(.*)_([A-Za-z0-9]+)(?:_(\d+))?$")
+    
     @staticmethod
-    def get_rig_from_selection(selection):
-        """
-        Identifies the Rig Set from any selected part of the rig using rigorous topology checks.
-        """
+    def get_reverse_state(node: str) -> bool:
+        if not cmds.objExists(node): return False
+        
+        if cmds.nodeType(node) == MrsNaming.NODE_PLUGIN:
+            if cmds.attributeQuery(MrsNaming.ATTR_REVERSE_ORDER, node=node, exists=True):
+                return cmds.getAttr(f"{node}.{MrsNaming.ATTR_REVERSE_ORDER}")
+        
+        check_node = node
+        if cmds.nodeType(node) == "transform":
+            shapes = cmds.listRelatives(node, shapes=True)
+            if shapes: check_node = shapes[0]
+            
+        if cmds.objExists(check_node) and cmds.attributeQuery("inMesh", node=check_node, exists=True):
+            hist = cmds.listConnections(f"{check_node}.inMesh", s=True) or []
+            for h in hist:
+                if cmds.nodeType(h) == MrsNaming.NODE_PLUGIN:
+                    if cmds.attributeQuery(MrsNaming.ATTR_REVERSE_ORDER, node=h, exists=True):
+                        return cmds.getAttr(f"{h}.{MrsNaming.ATTR_REVERSE_ORDER}")
+
+        if cmds.attributeQuery(MrsNaming.ATTR_MRS_REVERSE, node=node, exists=True):
+            return cmds.getAttr(f"{node}.{MrsNaming.ATTR_MRS_REVERSE}")
+            
+        return False
+
+    @staticmethod
+    def get_rig_from_selection(selection: list) -> str:
         if not selection: return None
         
         for obj in selection:
             if not cmds.objExists(obj): continue
             
-            # --- Strategy 1: Object Sets (Most Accurate) ---
             sets = cmds.listSets(object=obj) or []
             for s in sets:
                 if s.endswith(MrsNaming.RIG_SET):
                     return s
-                # Check Sub-Sets (e.g., Ribbon_Control_Set -> Ribbon_Rig_Set)
                 for suffix in [MrsNaming.CTRL_SET, MrsNaming.GRP_SET, MrsNaming.GEO_SET, MrsNaming.JNT_SET, MrsNaming.NODE_SET]:
                     if s.endswith(suffix):
-                        base = s[:-len(suffix)] # Exact slice
+                        base = s[:-len(suffix)]
                         candidate = f"{base}{MrsNaming.RIG_SET}"
                         if cmds.objExists(candidate): return candidate
 
-            # --- Strategy 2: Attribute Lookup (Metadata) ---
-            # Walk up hierarchy to find base name attribute
             curr = obj
             while curr:
                 if cmds.attributeQuery(MrsNaming.ATTR_BASE_NAME, node=curr, exists=True):
@@ -77,10 +105,8 @@ class RigUtils:
                 parents = cmds.listRelatives(curr, parent=True)
                 curr = parents[0] if parents else None
 
-            # --- Strategy 3: Name Suffix Stripping (Fallback) ---
             obj_name = obj.split("|")[-1]
             
-            # Specific Control Suffixes
             target_suffixes = [
                 MrsNaming.FK_CTRL, MrsNaming.IK_CTRL, 
                 MrsNaming.FK_OFFSET, MrsNaming.IK_OFFSET,
@@ -89,22 +115,17 @@ class RigUtils:
             
             for suf in target_suffixes:
                 if obj_name.endswith(suf):
-                    base = obj_name[:-len(suf)]
-                    # Check for namespace handling if needed (Group_A_0_FK_Ctrl -> Ribbon_A_0 -> Ribbon)
-                    # This is tricky with Group IDs (A, B).
-                    # Heuristic: Try to find the Rig Set.
+                    trimmed_name = obj_name[:-len(suf)]
                     
-                    # Try direct base
-                    candidate = f"{base}{MrsNaming.RIG_SET}"
-                    if cmds.objExists(candidate): return candidate
-                    
-                    # Try stripping Group ID (e.g. Ribbon_A_0 -> Ribbon)
-                    # "Ribbon_A_0" split by "_" -> ["Ribbon", "A", "0"]
-                    parts = base.rsplit("_", 2) 
-                    if len(parts) > 1:
-                        # Try "Ribbon"
-                        candidate_root = f"{parts[0]}{MrsNaming.RIG_SET}"
+                    match = RigUtils.NAME_PATTERN.match(trimmed_name)
+                    if match:
+                        true_base = match.group(1)
+                        candidate_root = f"{true_base}{MrsNaming.RIG_SET}"
                         if cmds.objExists(candidate_root): return candidate_root
+                        
+                    candidate = f"{trimmed_name}{MrsNaming.RIG_SET}"
+                    if cmds.objExists(candidate): return candidate
+                        
         return None
 
     @staticmethod
@@ -118,9 +139,6 @@ class RigUtils:
     def generate_name(base_name, chain_idx, bone_idx, suffix):
         clean_base = base_name.replace(":", "_")
         group_id = RigUtils.get_alpha_index(chain_idx)
-        # Suffix usually comes with underscore from MrsNaming, or passed without?
-        # builder passes MrsNaming.FK_CTRL which has underscore.
-        # We need to ensure we don't double underscore.
         if suffix.startswith("_"):
             return f"{clean_base}_{group_id}_{bone_idx}{suffix}"
         return f"{clean_base}_{group_id}_{bone_idx}_{suffix}"
@@ -148,30 +166,35 @@ class RigUtils:
     @staticmethod
     def zero_out_local(node):
         for attr in ['t', 'r', 'jointOrient']:
-            if cmds.attributeQuery(attr, node=node, exists=True) and not cmds.getAttr(f"{node}.{attr}", lock=True):
-                cmds.setAttr(f"{node}.{attr}", 0, 0, 0)
-        if not cmds.getAttr(f"{node}.s", lock=True):
-            cmds.setAttr(f"{node}.s", 1, 1, 1)
+            plug = f"{node}.{attr}"
+            if cmds.attributeQuery(attr, node=node, exists=True):
+                is_locked = cmds.getAttr(plug, lock=True)
+                is_connected = cmds.connectionInfo(plug, isDestination=True)
+                if not is_locked and not is_connected:
+                    try: cmds.setAttr(plug, 0, 0, 0)
+                    except: pass # Failsafe for partial connections
+                    
+        scale_plug = f"{node}.s"
+        is_s_locked = cmds.getAttr(scale_plug, lock=True)
+        is_s_connected = cmds.connectionInfo(scale_plug, isDestination=True)
+        
+        if not is_s_locked and not is_s_connected:
+            try: cmds.setAttr(scale_plug, 1, 1, 1)
+            except: pass
 
     @staticmethod
     def delete_opm_nodes(driven_node):
-        """
-        Safely removes OPM driver nodes.
-        CRITICAL FIX: Restores the object's World Matrix to prevent snapping to origin.
-        """
         if not cmds.objExists(driven_node): return
 
         plug = f"{driven_node}.offsetParentMatrix"
         conns = cmds.listConnections(plug, s=True, d=False)
         if not conns: return
         
-        # 1. Capture World Matrix (Before breaking connection)
         m_current = cmds.xform(driven_node, q=True, ws=True, m=True)
         
         opm_node = conns[0]
         nodes_to_delete = []
         
-        # Identify nodes
         if cmds.nodeType(opm_node) == "multMatrix":
             if any(x in opm_node.lower() for x in ["_opm", "opm_driver"]):
                 nodes_to_delete.append(opm_node)
@@ -180,7 +203,6 @@ class RigUtils:
                     if cmds.nodeType(inp) == "inverseMatrix" and any(x in inp.lower() for x in ["pininv", "parentinv", "inv"]):
                         nodes_to_delete.append(inp)
         
-        # Break & Delete
         src = cmds.connectionInfo(plug, sourceFromDestination=True)
         if src: cmds.disconnectAttr(src, plug)
             
@@ -188,36 +210,35 @@ class RigUtils:
             valid_del = [n for n in nodes_to_delete if cmds.objExists(n)]
             if valid_del: cmds.delete(valid_del)
             
-        # Reset OPM to Identity
         cmds.setAttr(plug, [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], type="matrix")
         
-        # 2. Restore Position (Compensate for OPM loss)
         try:
             cmds.xform(driven_node, ws=True, m=m_current)
         except Exception as e:
             print(f"[MRS] Warning: Could not restore pose for {driven_node}: {e}")
 
     @staticmethod
-    def connect_via_opm(driver, driven):
+    def connect_via_opm(driver, driven, maintain_offset=True):
         if not cmds.objExists(driver) or not cmds.objExists(driven): return None
 
         plug = f"{driven}.offsetParentMatrix"
+        opm_name = f"{driven}_opm_driver"
 
-        # Cleanup existing
         src = cmds.connectionInfo(plug, sourceFromDestination=True)
         if src:
-            src_node = src.split(".")[0]
             cmds.disconnectAttr(src, plug)
-            if "opm_driver" in src_node and cmds.objExists(src_node):
-                try: cmds.delete(src_node)
-                except: pass
+            
+        if cmds.objExists(opm_name):
+            try: cmds.delete(opm_name)
+            except: pass
 
-        # Calc
-        m_driven = om.MMatrix(cmds.xform(driven, q=True, ws=True, m=True))
-        m_driver = om.MMatrix(cmds.xform(driver, q=True, ws=True, m=True))
-        m_offset = m_driven * m_driver.inverse()
+        m_offset = om.MMatrix.kIdentity
         
-        # Optimize Direct
+        if maintain_offset:
+            m_driven = om.MMatrix(cmds.xform(driven, q=True, ws=True, m=True))
+            m_driver = om.MMatrix(cmds.xform(driver, q=True, ws=True, m=True))
+            m_offset = m_driven * m_driver.inverse()
+        
         is_identity = True
         for i in range(16):
             target = 1.0 if (i % 5) == 0 else 0.0
@@ -230,16 +251,13 @@ class RigUtils:
             RigUtils.zero_out_local(driven)
             return None
         
-        # MultMatrix
-        mult = cmds.createNode("multMatrix", name=f"{driven}_opm_driver")
+        mult = cmds.createNode("multMatrix", name=opm_name)
         
         if is_identity:
-            # Shift inputs: Driver -> 0, ParentInv -> 1
             cmds.connectAttr(f"{driver}.worldMatrix[0]", f"{mult}.matrixIn[0]")
             if parents:
                 cmds.connectAttr(f"{parents[0]}.worldInverseMatrix[0]", f"{mult}.matrixIn[1]")
         else:
-            # Standard: Offset -> 0, Driver -> 1, ParentInv -> 2
             cmds.setAttr(f"{mult}.matrixIn[0]", list(m_offset), type="matrix")
             cmds.connectAttr(f"{driver}.worldMatrix[0]", f"{mult}.matrixIn[1]")
             if parents:
@@ -250,13 +268,12 @@ class RigUtils:
         return mult
 
     @staticmethod
-    def calculate_topology_metrics(bones):
+    def calculate_topology_metrics(bones: list) -> tuple:
         if not bones: return 2.0, 0.5
         if len(bones) < 2: return 2.0, 1.0
 
         total_len = 0.0
         try:
-            # Calculate Arc Length
             for i in range(len(bones) - 1):
                 p1 = om.MPoint(cmds.xform(bones[i], q=True, ws=True, t=True))
                 p2 = om.MPoint(cmds.xform(bones[i+1], q=True, ws=True, t=True))
@@ -264,17 +281,13 @@ class RigUtils:
         except: 
             return 2.0, 0.5
         
-        # Average segment length
         num_segments = len(bones) - 1
         avg_len = total_len / num_segments if num_segments > 0 else 1.0
         
-        # New Heuristics:
-        # Width: 25% of average length (was 40%)
-        # Hold: 10% of average length (was 5%, but user felt it was big? Maybe due to inaccurate total_len before)
         return max(avg_len * 0.25, 0.01), max(avg_len * 0.1, 0.001)
 
     @staticmethod
-    def get_chains_from_ribbon_node(node):
+    def get_chains_from_ribbon_node(node: str) -> list:
         if not cmds.objExists(node): return []
         if cmds.attributeQuery(MrsNaming.ATTR_CHAINS_DATA, node=node, exists=True):
             try:
@@ -282,7 +295,6 @@ class RigUtils:
                 if data: return json.loads(data)
             except: pass
         
-        # Fallback
         chains = []
         c_ind = cmds.getAttr(f"{node}.inChains", multiIndices=True) or []
         for c in sorted(c_ind):
@@ -295,8 +307,7 @@ class RigUtils:
         return chains
 
     @staticmethod
-    def create_control_shape(name, size=1.0, shape_type="circle"):
-        """Creates control with correct Shape naming."""
+    def create_control_shape(name: str, size: float = 1.0, shape_type: str = "circle") -> str:
         if shape_type == "circle":
             ctrl = cmds.circle(name=name, nr=(1, 0, 0), r=size, ch=False)[0]
             color = 17
@@ -306,7 +317,6 @@ class RigUtils:
             cmds.makeIdentity(ctrl, apply=True, r=True)
             color = 13
         
-        # Rename Shape
         shapes = cmds.listRelatives(ctrl, shapes=True, fullPath=True)
         if shapes:
             cmds.rename(shapes[0], f"{name}Shape")
@@ -316,7 +326,7 @@ class RigUtils:
         return ctrl
 
     @staticmethod
-    def apply_perfect_ribbon_weights(mesh, chains, strategy="hard", pre_follow_parent=True, reverse_order=False, pure_ik=False):
+    def apply_perfect_ribbon_weights(mesh: str, chains: list, strategy: str = "hard", pre_follow_parent: bool = True, reverse_order: bool = False, pure_ik: bool = False) -> None:
         if not cmds.objExists(mesh) or not chains: return
         all_bones = [b for c in chains for b in c]
         sc = cmds.skinCluster(all_bones, mesh, toSelectedBones=True, maximumInfluences=3)[0]
@@ -326,7 +336,6 @@ class RigUtils:
             working_chains.reverse()
             
         if not working_chains: return
-        print(f"[MRS] Weighting Order: {[c[0] for c in working_chains]}")
 
         g_off = 0
         for c_idx, chain in enumerate(working_chains):
@@ -334,13 +343,10 @@ class RigUtils:
                 pre = [g_off+i for i in range(3)]
                 mine = [g_off+i for i in range(3,9)]
                 
-                # Assign Mine
                 vtx = [f"{mesh}.vtx[{i}]" for i in mine]
                 if vtx: cmds.skinPercent(sc, vtx, transformValue=[(bone, 1.0)])
                 
-                # Assign Pre
                 target = bone
-                # If FK (default), Pre follows parent. If Pure IK, Pre follows current bone.
                 if b_idx > 0 and pre_follow_parent and not pure_ik: 
                     target = chain[b_idx-1]
                 

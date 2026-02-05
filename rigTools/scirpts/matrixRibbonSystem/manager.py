@@ -13,7 +13,7 @@ class RigManager:
         return cmds.ls(f"*{MrsNaming.RIG_SET}", type="objectSet") or []
 
     @staticmethod
-    def get_hierarchy_depth(node):
+    def _get_depth(node):
         return len(cmds.ls(node, long=True)[0].split("|"))
 
     @staticmethod
@@ -39,10 +39,10 @@ class RigManager:
             RigUtils.delete_opm_nodes(jnt) # Re-use robust cleanup
 
         # 3. Apply Targets
-        sorted_joints = sorted(list(targets.keys()), key=RigManager.get_hierarchy_depth)
+        # Sort by depth to ensure parents are moved before children (though WS xform handles this, it's safer)
+        sorted_joints = sorted(list(targets.keys()), key=RigManager._get_depth)
         for jnt in sorted_joints:
-            if jnt in targets:
-                cmds.xform(jnt, ws=True, m=targets[jnt])
+            cmds.xform(jnt, ws=True, m=targets[jnt])
         
         # 4. Cleanup Attributes
         for jnt in joints:
@@ -50,8 +50,14 @@ class RigManager:
             if cmds.attributeQuery(MrsNaming.ATTR_BIND_POSE, node=jnt, exists=True):
                 cmds.deleteAttr(jnt, at=MrsNaming.ATTR_BIND_POSE)
 
-    def remove_rig(self, set_name, restore_pose=False):
+    def remove_rig(self, set_name: str, restore_pose: bool = False):
         if not cmds.objExists(set_name): return
+        
+        # Robust Validation
+        if cmds.nodeType(set_name) != "objectSet" or not set_name.endswith(MrsNaming.RIG_SET):
+             print(f"[MRS Manager] Error: {set_name} is not a valid MRS Rig Set.")
+             return
+             
         print(f"\n[MRS Manager] Removing: {set_name}")
         
         base_name = set_name.replace(MrsNaming.RIG_SET, "")
@@ -67,10 +73,11 @@ class RigManager:
 
         # 2. Unbind & Unparent Joints
         if joints:
-            self.safe_unbind_batch(list(set(joints)), restore_pose)
+            # Ensure unique and existing
+            valid_joints = list(set([j for j in joints if cmds.objExists(j)]))
+            self.safe_unbind_batch(valid_joints, restore_pose)
             
-            for j in joints:
-                if not cmds.objExists(j): continue
+            for j in valid_joints:
                 parents = cmds.listRelatives(j, parent=True)
                 if parents:
                     p_name = parents[0]
@@ -107,7 +114,6 @@ class RigManager:
         if objs_to_delete:
             # Unique
             unique_objs = list(set(objs_to_delete))
-            # Sort by depth to delete children first? Maya handles delete safely usually.
             cmds.delete(unique_objs)
 
         # 5. Delete Sets

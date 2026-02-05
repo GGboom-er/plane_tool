@@ -1,7 +1,7 @@
 """
 Matrix Ribbon System (MRS) - Rig Builder
-Version: 17.1.0
-Optimized: Scalable controls, decoupled logic.
+Version: 17.2.0
+Optimized: Modular scale logic, cleaner architecture.
 """
 import maya.cmds as cmds
 import json
@@ -10,12 +10,11 @@ from utils import RigUtils, MrsNaming
 class RigBuilder:
     NODE_TYPE = "matrixRibbonMesh"
 
-    def create_preview_mesh(self, chains, base_name="Ribbon", width=None, hold_length=None, loop=False, stitch=True):
+    def create_preview_mesh(self, chains: list, base_name: str = "Ribbon", width: float = None, hold_length: float = None, loop: bool = False, stitch: bool = True):
         auto_w, auto_h = RigUtils.calculate_topology_metrics(chains[0])
         w = width if width is not None else auto_w
         hl = hold_length if hold_length is not None else auto_h
 
-        # Naming
         clean_base = base_name.replace(":", "_")
         node_name = f"{clean_base}{MrsNaming.NODE_PREVIEW}"
         mesh_t_name = f"{clean_base}{MrsNaming.MESH_PREVIEW}"
@@ -23,7 +22,6 @@ class RigBuilder:
 
         node = cmds.createNode(self.NODE_TYPE, name=node_name)
         
-        # Store Metadata
         cmds.addAttr(node, longName=MrsNaming.ATTR_BASE_NAME, dataType="string")
         cmds.setAttr(f"{node}.{MrsNaming.ATTR_BASE_NAME}", base_name, type="string")
         
@@ -33,34 +31,28 @@ class RigBuilder:
             cmds.setAttr(f"{node}.{MrsNaming.ATTR_CHAINS_DATA}", chains_json, type="string")
         except: pass
 
-        # Set Attrs
-        for attr, val in [("width", w), ("holdLength", hl), ("loop", loop), ("stitch", stitch)]:
+        for attr, val in [(MrsNaming.ATTR_WIDTH, w), (MrsNaming.ATTR_HOLD_LENGTH, hl), (MrsNaming.ATTR_LOOP, loop), (MrsNaming.ATTR_STITCH, stitch)]:
             if cmds.attributeQuery(attr, node=node, exists=True):
                 cmds.setAttr(f"{node}.{attr}", val)
         
-        # Connect Chains
         for i, chain in enumerate(chains):
             for j, bone in enumerate(chain):
                 cmds.connectAttr(f"{bone}.worldMatrix[0]", f"{node}.inChains[{i}].chainMatrices[{j}]")
         
-        # Output Mesh
         mesh_t = cmds.createNode("transform", name=mesh_t_name)
         mesh_s = cmds.createNode("mesh", name=mesh_s_name, parent=mesh_t)
         cmds.connectAttr(f"{node}.outMesh", f"{mesh_s}.inMesh")
         cmds.sets(mesh_s, edit=True, forceElement="initialShadingGroup")
         
-        # Store Base Name on Transform
         if not cmds.attributeQuery(MrsNaming.ATTR_BASE_NAME, node=mesh_t, exists=True):
             cmds.addAttr(mesh_t, longName=MrsNaming.ATTR_BASE_NAME, dataType="string")
         cmds.setAttr(f"{mesh_t}.{MrsNaming.ATTR_BASE_NAME}", base_name, type="string")
         
-        # Store Computed UVs
         self._bake_uv_data(node, mesh_t)
         
         return mesh_t, node, w, hl
 
     def _bake_uv_data(self, node, mesh_transform):
-        # 1. Bake UV Arrays
         for attr, store_name in [("outChainU", MrsNaming.ATTR_STORED_U), ("outChainV", MrsNaming.ATTR_STORED_V)]:
             if cmds.attributeQuery(attr, node=node, exists=True):
                 vals = cmds.getAttr(f"{node}.{attr}")
@@ -80,32 +72,27 @@ class RigBuilder:
                         cmds.addAttr(mesh_transform, longName=store_name, dataType="doubleArray")
                     cmds.setAttr(f"{mesh_transform}.{store_name}", flat_vals, type="doubleArray")
         
-        # 2. Bake Reverse Order State
-        rev_attr = "reverseOrder"
-        store_rev = "mrsReverseOrder"
+        rev_attr = MrsNaming.ATTR_REVERSE_ORDER
+        store_rev = MrsNaming.ATTR_MRS_REVERSE
         if cmds.attributeQuery(rev_attr, node=node, exists=True):
             val = cmds.getAttr(f"{node}.{rev_attr}")
             if not cmds.attributeQuery(store_rev, node=mesh_transform, exists=True):
                 cmds.addAttr(mesh_transform, longName=store_rev, attributeType="bool")
             cmds.setAttr(f"{mesh_transform}.{store_rev}", val)
 
-    def build_rig_structure(self, mesh_transform, chains, name="Ribbon", loop=False, enable_fk=True, enable_ik=True, existing_uvpin=None):
+    def build_rig_structure(self, mesh_transform: str, chains: list, name: str = "Ribbon", loop: bool = False, enable_fk: bool = True, enable_ik: bool = True, existing_uvpin: str = None, parent_object: str = None) -> dict:
         clean_name = name.replace(":", "_")
         
-        # 1. Retrieve Width for Sizing
         rig_width = 2.0
-        if cmds.attributeQuery("width", node=mesh_transform, exists=True):
-            rig_width = cmds.getAttr(f"{mesh_transform}.width")
+        if cmds.attributeQuery(MrsNaming.ATTR_WIDTH, node=mesh_transform, exists=True):
+            rig_width = cmds.getAttr(f"{mesh_transform}.{MrsNaming.ATTR_WIDTH}")
         else:
-            # Try finding driver
             hist = cmds.listConnections(f"{mesh_transform}.inMesh", s=True) or []
-            if hist and cmds.attributeQuery("width", node=hist[0], exists=True):
-                rig_width = cmds.getAttr(f"{hist[0]}.width")
+            if hist and cmds.attributeQuery(MrsNaming.ATTR_WIDTH, node=hist[0], exists=True):
+                rig_width = cmds.getAttr(f"{hist[0]}.{MrsNaming.ATTR_WIDTH}")
 
-        # 2. UV Pin Setup
         uv_pin, u_vals, v_vals = self._setup_uv_pin(mesh_transform, clean_name, chains, loop, existing_uvpin)
         
-        # 3. Main Groups
         rig_grp = self._ensure_group(f"{clean_name}{MrsNaming.GRP_CTRL}")
         comps = {"ctrls": [], "groups": [rig_grp], "nodes": [uv_pin], "drivers": []}
         
@@ -118,11 +105,11 @@ class RigBuilder:
             if chain_grp not in comps["groups"]: comps["groups"].append(chain_grp)
             
             prev_fk_ctrl = chain_grp
+            prev_fk_grp = None
             prev_pin_plug = None
-            chain_root_fk = None # Track root FK for visibility proxy
+            chain_root_fk = None 
             
             for i, bone in enumerate(chain):
-                # Update Pin
                 idx = pin_offset + i
                 u = u_vals[c_idx] if u_vals and c_idx < len(u_vals) else 0.5
                 curr_pin_plug = f"{uv_pin}.outputMatrix[{idx}]"
@@ -130,39 +117,35 @@ class RigBuilder:
                 ctx = {
                     "base": clean_name, "c": c_idx, "i": i, 
                     "pin": curr_pin_plug, "prev_pin": prev_pin_plug,
-                    "prev_fk": prev_fk_ctrl, "chain_grp": chain_grp,
-                    "width": rig_width
+                    "prev_fk": prev_fk_ctrl, "prev_fk_grp": prev_fk_grp, "chain_grp": chain_grp,
+                    "width": rig_width, "parent_object": parent_object
                 }
                 
                 current_driver = None
                 
-                # --- FK ---
                 if enable_fk:
                     fk_res = self._build_fk_component(ctx, comps)
                     prev_fk_ctrl = fk_res["ctrl"]
+                    prev_fk_grp = fk_res["grp"]
                     current_driver = fk_res["ctrl"]
                     
-                    # Visibility Logic
                     if i == 0:
                         chain_root_fk = fk_res["ctrl"]
-                        if not cmds.attributeQuery("Show_IK", node=chain_root_fk, exists=True):
-                            cmds.addAttr(chain_root_fk, longName="Show_IK", attributeType="bool", keyable=True, defaultValue=1)
+                        if not cmds.attributeQuery(MrsNaming.ATTR_SHOW_IK, node=chain_root_fk, exists=True):
+                            cmds.addAttr(chain_root_fk, longName=MrsNaming.ATTR_SHOW_IK, attributeType="bool", keyable=True, defaultValue=1)
                     else:
-                        # Add Proxy Attribute
-                        if chain_root_fk and not cmds.attributeQuery("Show_IK", node=fk_res["ctrl"], exists=True):
-                            cmds.addAttr(fk_res["ctrl"], longName="Show_IK", proxy=f"{chain_root_fk}.Show_IK")
+                        if chain_root_fk and not cmds.attributeQuery(MrsNaming.ATTR_SHOW_IK, node=fk_res["ctrl"], exists=True):
+                            cmds.addAttr(fk_res["ctrl"], longName=MrsNaming.ATTR_SHOW_IK, proxy=f"{chain_root_fk}.{MrsNaming.ATTR_SHOW_IK}")
                 else:
                     self._clean_fk_component(ctx)
 
-                # --- IK ---
                 if enable_ik:
                     parent = prev_fk_ctrl if enable_fk else chain_grp
                     ik_res = self._build_ik_component(ctx, comps, parent, enable_fk)
                     current_driver = ik_res["ctrl"]
                     
-                    # Connect Visibility
                     if chain_root_fk:
-                        cmds.connectAttr(f"{chain_root_fk}.Show_IK", f"{ik_res['grp']}.visibility", force=True)
+                        cmds.connectAttr(f"{chain_root_fk}.{MrsNaming.ATTR_SHOW_IK}", f"{ik_res['grp']}.visibility", force=True)
                 else:
                     self._clean_ik_component(ctx)
                 
@@ -185,14 +168,7 @@ class RigBuilder:
 
         u_vals, v_vals = self._get_stored_uvs(mesh_transform, mesh_s)
         
-        # Determine Reverse State
-        is_reversed = False
-        hist = cmds.listConnections(f"{mesh_s}.inMesh", s=True)
-        node = hist[0] if hist else None
-        if node and cmds.attributeQuery("reverseOrder", node=node, exists=True):
-            is_reversed = cmds.getAttr(f"{node}.reverseOrder")
-        elif cmds.attributeQuery("mrsReverseOrder", node=mesh_transform, exists=True):
-            is_reversed = cmds.getAttr(f"{mesh_transform}.mrsReverseOrder")
+        is_reversed = RigUtils.get_reverse_state(mesh_transform)
 
         num_chains = len(chains)
         max_len = max([len(c) for c in chains]) if chains else 0
@@ -202,14 +178,13 @@ class RigBuilder:
         final_v = []
         
         for c_idx, chain in enumerate(chains):
-            # Handle Reverse Order Mapping
             target_u_idx = (num_chains - 1 - c_idx) if is_reversed else c_idx
             
             if u_vals and target_u_idx < len(u_vals):
                 u = u_vals[target_u_idx]
             else:
                 denom = float(num_chains * 3) if loop else float(num_chains * 3 - 1)
-                base_idx = target_u_idx # Consistent with mapping
+                base_idx = target_u_idx
                 u = float(base_idx * 3 + 1) / denom if denom > 0 else 0.5
             final_u.append(u)
             
@@ -267,7 +242,6 @@ class RigBuilder:
             
         RigUtils.zero_out_local(grp)
         
-        # Size based on Width
         size = ctx["width"] * 1.2
         ctrl = self._ensure_control(ctrl_name, grp, size, "circle")
         comps["ctrls"].append(ctrl)
@@ -287,20 +261,22 @@ class RigBuilder:
         grp = self._ensure_group(grp_name, parent=parent)
         comps["groups"].append(grp)
         
+        # Reset Visibility: Ensure visible by default (Fix for FIK -> Pure IK transition)
+        v_plug = f"{grp}.visibility"
+        if cmds.connectionInfo(v_plug, isDestination=True):
+            src = cmds.connectionInfo(v_plug, sourceFromDestination=True)
+            cmds.disconnectAttr(src, v_plug)
+        try: cmds.setAttr(v_plug, 1)
+        except: pass
+        
         if is_fk_active:
             RigUtils.delete_opm_nodes(grp)
-            cmds.setAttr(f"{grp}.inheritsTransform", 1)
             RigUtils.zero_out_local(grp)
         else:
-            # Pure IK Mode (Optimized)
-            # Direct connection requires disabling inheritance to avoid double transformation
             RigUtils.delete_opm_nodes(grp)
             cmds.connectAttr(ctx["pin"], f"{grp}.offsetParentMatrix", force=True)
-            cmds.setAttr(f"{grp}.inheritsTransform", 0)
             RigUtils.zero_out_local(grp)
             
-        # Size based on Width (IK = 0.6 * FK_Size)
-        # FK Size is width * 1.2
         size = (ctx["width"] * 1.2) * 0.6 
         ctrl = self._ensure_control(ctrl_name, grp, size, "square")
         comps["ctrls"].append(ctrl)
@@ -318,16 +294,22 @@ class RigBuilder:
 
     def _connect_opm_relative(self, curr_pin, prev_pin, target_node, node_list):
         opm_name = f"{target_node}_OPM"
-        if not cmds.objExists(opm_name):
-            opm = cmds.createNode("multMatrix", name=opm_name)
-            node_list.append(opm)
-            inv = cmds.createNode("inverseMatrix", name=f"{target_node}_PinInv")
-            node_list.append(inv)
+        
+        if cmds.objExists(opm_name):
+            try: cmds.delete(opm_name)
+            except: pass
             
-            cmds.connectAttr(curr_pin, f"{opm}.matrixIn[0]")
-            cmds.connectAttr(prev_pin, f"{inv}.inputMatrix")
-            cmds.connectAttr(f"{inv}.outputMatrix", f"{opm}.matrixIn[1]")
-            cmds.connectAttr(f"{opm}.matrixSum", f"{target_node}.offsetParentMatrix", force=True)
+        opm = cmds.createNode("multMatrix", name=opm_name)
+        node_list.append(opm)
+        
+        cmds.connectAttr(curr_pin, f"{opm}.matrixIn[0]")
+        
+        inv = cmds.createNode("inverseMatrix", name=f"{target_node}_PinInv")
+        node_list.append(inv)
+        cmds.connectAttr(prev_pin, f"{inv}.inputMatrix", force=True)
+        cmds.connectAttr(f"{inv}.outputMatrix", f"{opm}.matrixIn[1]")
+        
+        cmds.connectAttr(f"{opm}.matrixSum", f"{target_node}.offsetParentMatrix", force=True)
 
     def _ensure_group(self, name, parent=None):
         if not cmds.objExists(name):
@@ -352,12 +334,68 @@ class RigBuilder:
         
         RigUtils.zero_out_local(ctrl)
         
-        # Lock and Hide Visibility
         cmds.setAttr(f"{ctrl}.v", lock=True, keyable=False, channelBox=False)
         
         return ctrl
 
-    def finalize_bind(self, preview_mesh, chains, enable_fk=True, enable_ik=True, existing_ribbon_node=None, existing_base_name=None, update_mode=False, existing_follow_mesh=None, passed_uvpin=None):
+    def _setup_follow_mesh(self, preview_mesh, clean_base, base_name, ribbon_node):
+        follow_mesh = cmds.duplicate(preview_mesh, name=f"{clean_base}{MrsNaming.MESH_FOLLOW}")[0]
+        cmds.delete(follow_mesh, ch=True)
+        RigUtils.zero_out_local(follow_mesh)
+        cmds.setAttr(f"{follow_mesh}.{MrsNaming.ATTR_INHERITS_XFORM}", 0)
+        
+        rev_val = RigUtils.get_reverse_state(ribbon_node) if ribbon_node else RigUtils.get_reverse_state(preview_mesh)
+        if rev_val:
+            if not cmds.attributeQuery(MrsNaming.ATTR_MRS_REVERSE, node=follow_mesh, exists=True):
+                cmds.addAttr(follow_mesh, longName=MrsNaming.ATTR_MRS_REVERSE, attributeType="bool")
+            cmds.setAttr(f"{follow_mesh}.{MrsNaming.ATTR_MRS_REVERSE}", rev_val)
+        
+        if ribbon_node:
+            if not cmds.attributeQuery(MrsNaming.ATTR_DRIVER_CONN, node=follow_mesh, exists=True):
+                cmds.addAttr(follow_mesh, longName=MrsNaming.ATTR_DRIVER_CONN, attributeType="message")
+            cmds.connectAttr(f"{ribbon_node}.message", f"{follow_mesh}.{MrsNaming.ATTR_DRIVER_CONN}", force=True)
+        
+        if not cmds.attributeQuery(MrsNaming.ATTR_BASE_NAME, node=follow_mesh, exists=True):
+            cmds.addAttr(follow_mesh, longName=MrsNaming.ATTR_BASE_NAME, dataType="string")
+        cmds.setAttr(f"{follow_mesh}.{MrsNaming.ATTR_BASE_NAME}", base_name, type="string")
+        
+        return follow_mesh
+
+    def _cleanup_scale_connections(self, chains, clean_base):
+        """Disconnects existing scale inputs from all control groups to prevent conflicts."""
+        for c_idx, chain in enumerate(chains):
+            for i in range(len(chain)):
+                for suffix in [MrsNaming.FK_OFFSET, MrsNaming.IK_OFFSET]:
+                    grp = RigUtils.generate_name(clean_base, c_idx, i, suffix)
+                    if cmds.objExists(grp):
+                        scale_plug = f"{grp}.scale"
+                        if cmds.connectionInfo(scale_plug, isDestination=True):
+                            src = cmds.connectionInfo(scale_plug, sourceFromDestination=True)
+                            cmds.disconnectAttr(src, scale_plug)
+                        try: cmds.setAttr(scale_plug, 1, 1, 1)
+                        except: pass
+
+    def _connect_scale_driver(self, dcm, chains, enable_fk, enable_ik, clean_base):
+        """Connects parent scale to specific groups based on rig mode."""
+        if enable_fk:
+            for c_idx, chain in enumerate(chains):
+                for i in range(len(chain)):
+                    # FK Mode: Connect scale to the ROOT of each FK chain only.
+                    # Children inherit scale naturally via hierarchy.
+                    if i == 0:
+                        fk_grp = RigUtils.generate_name(clean_base, c_idx, i, MrsNaming.FK_OFFSET)
+                        if cmds.objExists(fk_grp):
+                            cmds.connectAttr(f"{dcm}.outputScale", f"{fk_grp}.scale", force=True)
+        
+        if enable_ik and not enable_fk:
+            for c_idx, chain in enumerate(chains):
+                for i in range(len(chain)):
+                    # Pure IK Mode: Connect scale to ALL IK offsets (no hierarchy inheritance)
+                    ik_grp = RigUtils.generate_name(clean_base, c_idx, i, MrsNaming.IK_OFFSET)
+                    if cmds.objExists(ik_grp):
+                        cmds.connectAttr(f"{dcm}.outputScale", f"{ik_grp}.scale", force=True)
+
+    def finalize_bind(self, preview_mesh: str, chains: list, enable_fk: bool = True, enable_ik: bool = True, existing_ribbon_node: str = None, existing_base_name: str = None, update_mode: bool = False, existing_follow_mesh: str = None, passed_uvpin: str = None, parent_object: str = None) -> str:
         
         base_name = existing_base_name if existing_base_name else "Ribbon"
         follow_mesh = None
@@ -393,39 +431,38 @@ class RigBuilder:
         clean_base = base_name.replace(":", "_")
         
         if not update_mode:
-            follow_mesh = cmds.duplicate(preview_mesh, name=f"{clean_base}{MrsNaming.MESH_FOLLOW}")[0]
-            cmds.delete(follow_mesh, ch=True)
-            RigUtils.zero_out_local(follow_mesh)
-            cmds.setAttr(f"{follow_mesh}.inheritsTransform", 0)
-            
-            # Sync Reverse Order from Live Node
-            if ribbon_node and cmds.attributeQuery("reverseOrder", node=ribbon_node, exists=True):
-                rev_val = cmds.getAttr(f"{ribbon_node}.reverseOrder")
-                if not cmds.attributeQuery("mrsReverseOrder", node=follow_mesh, exists=True):
-                    cmds.addAttr(follow_mesh, longName="mrsReverseOrder", attributeType="bool")
-                cmds.setAttr(f"{follow_mesh}.mrsReverseOrder", rev_val)
-            
-            if ribbon_node:
-                if not cmds.attributeQuery(MrsNaming.ATTR_DRIVER_CONN, node=follow_mesh, exists=True):
-                    cmds.addAttr(follow_mesh, longName=MrsNaming.ATTR_DRIVER_CONN, attributeType="message")
-                cmds.connectAttr(f"{ribbon_node}.message", f"{follow_mesh}.{MrsNaming.ATTR_DRIVER_CONN}", force=True)
-            
-            if not cmds.attributeQuery(MrsNaming.ATTR_BASE_NAME, node=follow_mesh, exists=True):
-                cmds.addAttr(follow_mesh, longName=MrsNaming.ATTR_BASE_NAME, dataType="string")
-            cmds.setAttr(f"{follow_mesh}.{MrsNaming.ATTR_BASE_NAME}", base_name, type="string")
+            follow_mesh = self._setup_follow_mesh(preview_mesh, clean_base, base_name, ribbon_node)
 
         rig_data = self.build_rig_structure(follow_mesh, chains, name=base_name, 
-                                          enable_fk=enable_fk, enable_ik=enable_ik, existing_uvpin=uv_pin)
+                                          enable_fk=enable_fk, enable_ik=enable_ik, existing_uvpin=uv_pin, parent_object=parent_object)
         
+        if parent_object and cmds.objExists(parent_object):
+            dcm = cmds.createNode("decomposeMatrix", name=f"{clean_base}_Parent_DCM")
+            cmds.connectAttr(f"{parent_object}.worldMatrix[0]", f"{dcm}.inputMatrix", force=True)
+            rig_data["nodes"].append(dcm)
+            
+            self._cleanup_scale_connections(chains, clean_base)
+            self._connect_scale_driver(dcm, chains, enable_fk, enable_ik, clean_base)
+
         main_grp = self._ensure_group(f"{clean_base}{MrsNaming.GRP_MAIN}")
+        if cmds.attributeQuery("inheritsTransform", node=main_grp, exists=True):
+            cmds.setAttr(f"{main_grp}.inheritsTransform", 0)
+        
         jnt_grp = f"{clean_base}{MrsNaming.GRP_JNT}"
         
-        if not update_mode:
+        target_jnt_parent = None
+        if parent_object and cmds.objExists(parent_object):
+            target_jnt_parent = parent_object
+        elif not update_mode:
             jnt_grp = self._ensure_group(jnt_grp, parent=main_grp)
-            roots = [c[0] for c in chains]
-            self._parent_joints_safely(roots, jnt_grp)
-            
             rig_data["groups"].append(jnt_grp)
+            target_jnt_parent = jnt_grp
+            
+        if target_jnt_parent:
+            roots = [c[0] for c in chains]
+            self._parent_joints_safely(roots, target_jnt_parent)
+
+        if not update_mode:
             cmds.parent(follow_mesh, main_grp)
             cmds.setAttr(f"{follow_mesh}.visibility", 0)
             
@@ -435,8 +472,9 @@ class RigBuilder:
         rig_data["groups"].append(main_grp)
 
         all_bones = [b for c in chains for b in c]
+
         for bone, drv in zip(all_bones, rig_data["drivers"]):
-            opm = RigUtils.connect_via_opm(drv, bone)
+            opm = RigUtils.connect_via_opm(drv, bone, maintain_offset=False)
             if opm: rig_data["nodes"].append(opm)
             
             if not cmds.attributeQuery(MrsNaming.ATTR_BIND_POSE, node=bone, exists=True):
@@ -514,10 +552,9 @@ class RigBuilder:
         
         cmds.delete(proxy_mesh, ch=True)
         RigUtils.zero_out_local(proxy_mesh)
-        cmds.setAttr(f"{proxy_mesh}.inheritsTransform", 0)
+        cmds.setAttr(f"{proxy_mesh}.{MrsNaming.ATTR_INHERITS_XFORM}", 0)
         cmds.setAttr(f"{proxy_mesh}.visibility", 1)
         
-        # Independent Packaging (Standalone Set)
         proxy_grp = f"{clean_base}_Proxy_Grp"
         if not cmds.objExists(proxy_grp):
             proxy_grp = cmds.group(empty=True, name=proxy_grp)
@@ -532,42 +569,16 @@ class RigBuilder:
         cmds.sets(proxy_grp, add=proxy_set)
         cmds.sets(proxy_mesh, add=proxy_set)
             
-        # Detect Reverse Order
-        is_reversed = False
+        is_reversed = RigUtils.get_reverse_state(target_mesh)
         
-        # 1. Check baked attribute on Transform (highest priority if exists)
-        if cmds.attributeQuery("mrsReverseOrder", node=target_mesh, exists=True):
-            is_reversed = cmds.getAttr(f"{target_mesh}.mrsReverseOrder")
-        else:
-            # 2. Check Upstream History (Live Preview)
-            # Ensure we are looking at the Shape node for .inMesh
-            check_node = target_mesh
-            if cmds.nodeType(target_mesh) == "transform":
-                shapes = cmds.listRelatives(target_mesh, shapes=True)
-                if shapes: check_node = shapes[0]
-            
-            # Look for matrixRibbonMesh in history
-            if cmds.objExists(check_node):
-                # Try direct connection first
-                if cmds.attributeQuery("inMesh", node=check_node, exists=True):
-                    hist = cmds.listConnections(f"{check_node}.inMesh", s=True) or []
-                    for h in hist:
-                        if cmds.nodeType(h) == "matrixRibbonMesh":
-                            if cmds.attributeQuery("reverseOrder", node=h, exists=True):
-                                is_reversed = cmds.getAttr(f"{h}.reverseOrder")
-                            break
-                            
-        print(f"[MRS] Proxy Gen - Detected Reverse Order: {is_reversed} (Source: {target_mesh})")
-
         RigUtils.apply_perfect_ribbon_weights(proxy_mesh, chains, strategy="hard", pre_follow_parent=True, reverse_order=is_reversed, pure_ik=pure_ik)
         
         if not cmds.attributeQuery(MrsNaming.ATTR_BASE_NAME, node=proxy_mesh, exists=True):
             cmds.addAttr(proxy_mesh, longName=MrsNaming.ATTR_BASE_NAME, dataType="string")
         cmds.setAttr(f"{proxy_mesh}.{MrsNaming.ATTR_BASE_NAME}", base_name, type="string")
         
-        # Bake Reverse Order State to Proxy
-        if not cmds.attributeQuery("mrsReverseOrder", node=proxy_mesh, exists=True):
-            cmds.addAttr(proxy_mesh, longName="mrsReverseOrder", attributeType="bool")
-        cmds.setAttr(f"{proxy_mesh}.mrsReverseOrder", is_reversed)
+        if not cmds.attributeQuery(MrsNaming.ATTR_MRS_REVERSE, node=proxy_mesh, exists=True):
+            cmds.addAttr(proxy_mesh, longName=MrsNaming.ATTR_MRS_REVERSE, attributeType="bool")
+        cmds.setAttr(f"{proxy_mesh}.{MrsNaming.ATTR_MRS_REVERSE}", is_reversed)
         
         return proxy_mesh
