@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(\"C:/Program Files/Autodesk/Maya2025/bin/mayapy.exe\" \"Y:/GGbommer/scripts/plane_tool/rigTools/scirpts/matrixRibbonSystem/test_mrs.py\")",
+      "Bash(\"C:/Program Files/Autodesk/Maya2025/bin/mayapy.exe\" \"Y:/GGbommer/scripts/plane_tool/rigTools/scirpts/matrixRibbonSystem/test_final.py\")",
+      "Bash(git stash)",
+      "Bash(git stash pop)",
+      "Bash(\"C:/Program Files/Autodesk/Maya2025/bin/mayapy.exe\" -c \"\nimport maya.standalone\nmaya.standalone.initialize\\(name=''python''\\)\nimport maya.cmds as cmds\n\n# Create a simple plane along XZ, with known UV layout\n# polyPlane default: width along X, height along Z\n# UV: U along X, V along Z\nplane = cmds.polyPlane\\(w=10, h=10, sx=1, sy=1, ax=[0,1,0]\\)[0]\nshape = cmds.listRelatives\\(plane, shapes=True\\)[0]\n\n# Create uvPin at center\npin = cmds.createNode\\(''uvPin'', name=''test_pin''\\)\ncmds.connectAttr\\(f''{shape}.worldMesh[0]'', f''{pin}.deformedGeometry''\\)\ncmds.setAttr\\(f''{pin}.coordinate[0].coordinateU'', 0.5\\)\ncmds.setAttr\\(f''{pin}.coordinate[0].coordinateV'', 0.5\\)\n\n# Test different tangentAxis/normalAxis settings\nfor tan_ax in range\\(3\\):\n    for norm_ax in range\\(3\\):\n        if tan_ax == norm_ax: continue\n        cmds.setAttr\\(f''{pin}.tangentAxis'', tan_ax\\)\n        cmds.setAttr\\(f''{pin}.normalAxis'', norm_ax\\)\n        m = cmds.getAttr\\(f''{pin}.outputMatrix[0]''\\)\n        # Extract axes from output matrix\n        x_axis = \\(m[0], m[1], m[2]\\)\n        y_axis = \\(m[4], m[5], m[6]\\)\n        z_axis = \\(m[8], m[9], m[10]\\)\n        print\\(f''tan={tan_ax} norm={norm_ax} -> X={[round\\(v,2\\) for v in x_axis]} Y={[round\\(v,2\\) for v in y_axis]} Z={[round\\(v,2\\) for v in z_axis]}''\\)\n\")",
+      "Bash(\"C:/Program Files/Autodesk/Maya2025/bin/mayapy.exe\" -c \"\nimport maya.standalone\nmaya.standalone.initialize\\(name=''python''\\)\nimport maya.cmds as cmds\n\nplane = cmds.polyPlane\\(w=10, h=10, sx=1, sy=1, ax=[0,1,0]\\)[0]\nshape = cmds.listRelatives\\(plane, shapes=True\\)[0]\n\npin = cmds.createNode\\(''uvPin'', name=''test_pin''\\)\ncmds.connectAttr\\(shape + ''.worldMesh[0]'', pin + ''.deformedGeometry''\\)\ncmds.setAttr\\(pin + ''.coordinate[0].coordinateU'', 0.5\\)\ncmds.setAttr\\(pin + ''.coordinate[0].coordinateV'', 0.5\\)\n\nfor tan_ax in range\\(3\\):\n    for norm_ax in range\\(3\\):\n        if tan_ax == norm_ax: continue\n        cmds.setAttr\\(pin + ''.tangentAxis'', tan_ax\\)\n        cmds.setAttr\\(pin + ''.normalAxis'', norm_ax\\)\n        m = cmds.getAttr\\(pin + ''.outputMatrix[0]''\\)\n        x_axis = \\(round\\(m[0],2\\), round\\(m[1],2\\), round\\(m[2],2\\)\\)\n        y_axis = \\(round\\(m[4],2\\), round\\(m[5],2\\), round\\(m[6],2\\)\\)\n        z_axis = \\(round\\(m[8],2\\), round\\(m[9],2\\), round\\(m[10],2\\)\\)\n        print\\(''tan=%d norm=%d -> X=%s Y=%s Z=%s'' % \\(tan_ax, norm_ax, x_axis, y_axis, z_axis\\)\\)\n\")",
+      "Bash(\"C:/Program Files/Autodesk/Maya2025/bin/mayapy.exe\" -c \"import maya.standalone; maya.standalone.initialize\\(name=''python''\\); import maya.cmds as cmds; plane = cmds.polyPlane\\(w=10, h=10, sx=1, sy=1, ax=[0,1,0]\\)[0]; shape = cmds.listRelatives\\(plane, shapes=True\\)[0]; pin = cmds.createNode\\(''uvPin'', name=''test_pin''\\); cmds.connectAttr\\(shape + ''.worldMesh[0]'', pin + ''.deformedGeometry''\\); cmds.setAttr\\(pin + ''.coordinate[0].coordinateU'', 0.5\\); cmds.setAttr\\(pin + ''.coordinate[0].coordinateV'', 0.5\\); results = []; [results.append\\(''tan=%d norm=%d X=\\(%s\\) Y=\\(%s\\) Z=\\(%s\\)'' % \\(t, n, '',''.join\\([''%.2f''%m[i] for i in [0,1,2]]\\), '',''.join\\([''%.2f''%m[i] for i in [4,5,6]]\\), '',''.join\\([''%.2f''%m[i] for i in [8,9,10]]\\)\\)\\) for t in range\\(3\\) for n in range\\(3\\) if t != n for m in [cmds.getAttr\\(pin + ''.outputMatrix[0]''\\)] if not \\(cmds.setAttr\\(pin + ''.tangentAxis'', t\\) or cmds.setAttr\\(pin + ''.normalAxis'', n\\)\\) or True]; print\\(''\\\\n''.join\\(results\\)\\)\")",
+      "WebFetch(domain:www.google.com)",
+      "WebFetch(domain:around-the-corner.typepad.com)",
+      "WebFetch(domain:help.autodesk.com)",
+      "WebFetch(domain:download.autodesk.com)",
+      "WebFetch(domain:bindpose.com)",
+      "WebFetch(domain:forums.autodesk.com)",
+      "WebFetch(domain:discourse.techart.online)",
+      "WebFetch(domain:www.youtube.com)"
+    ]
+  },
+  "outputStyle": "default"
+}
