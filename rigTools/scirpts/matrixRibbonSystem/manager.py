@@ -1,10 +1,17 @@
 """
 Matrix Ribbon System (MRS) - Rig Manager
-Version: 10.0.0
-Optimized: Using centralized constants and robust deletion logic.
+Version: 19.0.0
 """
 import maya.cmds as cmds
 from utils import RigUtils, MrsNaming
+
+
+def _hierarchy_depth(node):
+    """Return hierarchy depth for sorting (deeper = higher number)."""
+    long_names = cmds.ls(node, long=True)
+    if not long_names: return 0
+    return len(long_names[0].split("|"))
+
 
 class RigManager:
 
@@ -13,21 +20,22 @@ class RigManager:
         return cmds.ls(f"*{MrsNaming.RIG_SET}", type="objectSet") or []
 
     @staticmethod
-    def _get_depth(node):
-        return len(cmds.ls(node, long=True)[0].split("|"))
-
-    @staticmethod
     def safe_unbind_batch(joints, restore_pose=False):
-        if not joints: return
+        if not joints:
+            return
 
         # 1. Capture Targets
         targets = {}
         for jnt in joints:
-            if not cmds.objExists(jnt): continue
+            if not cmds.objExists(jnt):
+                continue
             
             target_m = None
             if restore_pose and cmds.attributeQuery(MrsNaming.ATTR_BIND_POSE, node=jnt, exists=True):
                 target_m = cmds.getAttr(f"{jnt}.{MrsNaming.ATTR_BIND_POSE}")
+                # cmds.getAttr on matrix returns nested list [[...]], flatten it
+                if target_m and isinstance(target_m[0], (list, tuple)):
+                    target_m = list(target_m[0])
             else:
                 target_m = cmds.xform(jnt, q=True, ws=True, m=True)
             
@@ -35,23 +43,26 @@ class RigManager:
 
         # 2. Break & Reset OPM
         for jnt in joints:
-            if not cmds.objExists(jnt): continue
+            if not cmds.objExists(jnt):
+                continue
             RigUtils.delete_opm_nodes(jnt) # Re-use robust cleanup
 
         # 3. Apply Targets
         # Sort by depth to ensure parents are moved before children (though WS xform handles this, it's safer)
-        sorted_joints = sorted(list(targets.keys()), key=RigManager._get_depth)
+        sorted_joints = sorted(list(targets.keys()), key=_hierarchy_depth)
         for jnt in sorted_joints:
             cmds.xform(jnt, ws=True, m=targets[jnt])
         
         # 4. Cleanup Attributes
         for jnt in joints:
-            if not cmds.objExists(jnt): continue
+            if not cmds.objExists(jnt):
+                continue
             if cmds.attributeQuery(MrsNaming.ATTR_BIND_POSE, node=jnt, exists=True):
                 cmds.deleteAttr(jnt, at=MrsNaming.ATTR_BIND_POSE)
 
     def remove_rig(self, set_name: str, restore_pose: bool = False):
-        if not cmds.objExists(set_name): return
+        if not cmds.objExists(set_name):
+            return
         
         # Robust Validation
         if cmds.nodeType(set_name) != "objectSet" or not set_name.endswith(MrsNaming.RIG_SET):
@@ -76,27 +87,33 @@ class RigManager:
             # Ensure unique and existing
             valid_joints = list(set([j for j in joints if cmds.objExists(j)]))
             self.safe_unbind_batch(valid_joints, restore_pose)
-            
+
+            # Read stored parent_object from FollowMod for unparent check
+            follow_mod = f"{base_name}{MrsNaming.MESH_FOLLOW}"
+            stored_parent = None
+            if cmds.objExists(follow_mod) and cmds.attributeQuery(MrsNaming.ATTR_PARENT_OBJECT, node=follow_mod, exists=True):
+                stored_parent = cmds.getAttr(f"{follow_mod}.{MrsNaming.ATTR_PARENT_OBJECT}")
+
             for j in valid_joints:
                 parents = cmds.listRelatives(j, parent=True)
                 if parents:
                     p_name = parents[0]
-                    # Check if parent is part of rig structure
-                    if any(x in p_name for x in [MrsNaming.GRP_JNT, MrsNaming.GRP_MAIN]):
-                        try: cmds.parent(j, world=True)
-                        except: pass
+                    # Check if parent is part of rig structure or is the stored parent_object
+                    if (p_name.endswith(MrsNaming.GRP_JNT) or p_name.endswith(MrsNaming.GRP_MAIN)
+                            or (stored_parent and p_name == stored_parent)):
+                        cmds.parent(j, world=True)
 
         # 3. Delete Nodes (Priority)
         node_set = f"{base_name}{MrsNaming.NODE_SET}"
         if cmds.objExists(node_set):
             nodes = cmds.sets(node_set, q=True) or []
             valid_nodes = [n for n in nodes if cmds.objExists(n)]
-            if valid_nodes: cmds.delete(valid_nodes)
+            if valid_nodes:
+                cmds.delete(valid_nodes)
 
         # 4. Delete Structure
         sets_to_check = [
             f"{base_name}{MrsNaming.GEO_SET}",
-            f"{base_name}{MrsNaming.GRP_SET}",
             f"{base_name}{MrsNaming.CTRL_SET}"
         ]
         
@@ -105,20 +122,26 @@ class RigManager:
             if cmds.objExists(s):
                 members = cmds.sets(s, q=True) or []
                 for m in members:
-                    if cmds.objExists(m): objs_to_delete.append(m)
+                    if cmds.objExists(m):
+                        objs_to_delete.append(m)
         
         # Backup: Find Main Group by name
         main_grp = f"{base_name}{MrsNaming.GRP_MAIN}"
-        if cmds.objExists(main_grp): objs_to_delete.append(main_grp)
+        if cmds.objExists(main_grp):
+            objs_to_delete.append(main_grp)
 
         if objs_to_delete:
-            # Unique
+            # Sort by hierarchy depth (deepest first) to avoid "already deleted" errors
             unique_objs = list(set(objs_to_delete))
-            cmds.delete(unique_objs)
+            unique_objs.sort(key=_hierarchy_depth, reverse=True)
+            for o in unique_objs:
+                if cmds.objExists(o):
+                    cmds.delete(o)
 
         # 5. Delete Sets
         sets_to_delete = sets_to_check + [jnt_set, node_set, set_name]
         for s in sets_to_delete:
-            if cmds.objExists(s): cmds.delete(s)
+            if cmds.objExists(s):
+                cmds.delete(s)
                 
         print("[MRS Manager] Removal Complete.\n")

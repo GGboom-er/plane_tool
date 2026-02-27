@@ -1,13 +1,13 @@
 """
 Matrix Ribbon System (MRS) - Tool UI
-Version: 8.0.0
-Optimized: Decoupled UI logic, lean architecture.
+Version: 19.0.0
 """
 import maya.cmds as cmds
 import sys
 import os
 import importlib
 import traceback
+from contextlib import contextmanager
 
 try:
     from PySide2 import QtWidgets, QtCore
@@ -15,7 +15,7 @@ except ImportError:
     try:
         from PySide6 import QtWidgets, QtCore
     except ImportError:
-        pass
+        raise ImportError("MRS requires PySide2 or PySide6 (included with Maya).")
 
 CURRENT_DIR = os.path.dirname(__file__)
 if CURRENT_DIR not in sys.path: sys.path.append(CURRENT_DIR)
@@ -24,14 +24,15 @@ import utils
 import builder
 import manager
 import matrix_ribbon_system
-from utils import MrsNaming
 
 # Global reference to prevent Garbage Collection from destroying the UI
 _mrs_window_instance = None
 
-# Force Reload
-for mod in [utils, builder, manager, matrix_ribbon_system]:
-    importlib.reload(mod)
+def _reload_all():
+    """Reload all MRS modules in dependency order."""
+    for mod in [utils, builder, manager, matrix_ribbon_system]:
+        importlib.reload(mod)
+
 
 def get_maya_window():
     app = QtWidgets.QApplication.instance()
@@ -42,9 +43,23 @@ def get_maya_window():
 def show_error(msg, detail=""):
     box = QtWidgets.QMessageBox()
     box.setIcon(QtWidgets.QMessageBox.Critical)
-    box.setText(msg); box.setDetailedText(detail)
+    box.setText(msg)
+    box.setDetailedText(detail)
     box.setWindowTitle("MRS Error")
     box.exec_()
+
+
+@contextmanager
+def _undo_chunk(name):
+    """Context manager for Maya undo chunks with automatic error display."""
+    cmds.undoInfo(openChunk=True, chunkName=name)
+    try:
+        yield
+    except Exception as e:
+        traceback.print_exc()
+        show_error(f"{name} Error", str(e))
+    finally:
+        cmds.undoInfo(closeChunk=True)
 
 def force_reload_plugin():
     PLUGIN = "py_matrix_ribbon.py"
@@ -74,268 +89,157 @@ class MatrixRibbonTool(QtWidgets.QWidget):
         self.setWindowTitle("Ribbon System Tools")
         self.resize(300, 450)
         self.setWindowFlags(QtCore.Qt.Window)
-        
+
         main_lay = QtWidgets.QVBoxLayout(self)
-        
-        # Build Group
-        grp_build = QtWidgets.QGroupBox("1. Build")
-        lay_build = QtWidgets.QVBoxLayout(grp_build)
-        
-        # Opts
+        main_lay.addWidget(self._build_section())
+        main_lay.addWidget(self._manage_section())
+        main_lay.addStretch()
+
+    def _build_section(self):
+        grp = QtWidgets.QGroupBox("1. Build")
+        lay = QtWidgets.QVBoxLayout(grp)
+
+        # Opts row 1: FK / IK / Follow (Mesh)
         h_opts = QtWidgets.QHBoxLayout()
-        self.chk_fk = QtWidgets.QCheckBox("FK"); self.chk_fk.setChecked(True)
-        self.chk_ik = QtWidgets.QCheckBox("IK"); self.chk_ik.setChecked(True)
-        h_opts.addWidget(self.chk_fk); h_opts.addWidget(self.chk_ik); h_opts.addStretch()
-        lay_build.addLayout(h_opts)
+        self.chk_fk = QtWidgets.QCheckBox("FK")
+        self.chk_fk.setChecked(True)
+        self.chk_ik = QtWidgets.QCheckBox("IK")
+        self.chk_ik.setChecked(True)
+        self.chk_follow = QtWidgets.QCheckBox("Follow")
+        self.chk_follow.setChecked(False)
+        self.chk_follow.setToolTip("Add Follow_Mesh toggle to FK controls (requires Parent Object)")
         
+        h_opts.addWidget(self.chk_fk)
+        h_opts.addWidget(self.chk_ik)
+        h_opts.addWidget(self.chk_follow)
+        h_opts.addStretch()
+        lay.addLayout(h_opts)
+
+
+        # Parent Object
+        h_parent = QtWidgets.QHBoxLayout()
+        lbl_parent = QtWidgets.QLabel("Parent:")
+        self.txt_parent = QtWidgets.QLineEdit()
+        self.txt_parent.setReadOnly(True)
+        self.txt_parent.setPlaceholderText("None (Auto-detect from bone parent)")
+        btn_pick = QtWidgets.QPushButton("<<")
+        btn_pick.setFixedWidth(30)
+        btn_pick.setToolTip("Pick parent object from selection")
+        btn_pick.clicked.connect(self.on_pick_parent)
+        h_parent.addWidget(lbl_parent)
+        h_parent.addWidget(self.txt_parent)
+        h_parent.addWidget(btn_pick)
+        lay.addLayout(h_parent)
+
         # Buttons
         btn_prev = QtWidgets.QPushButton("A. Preview from Selection")
         btn_prev.clicked.connect(self.on_preview)
-        lay_build.addWidget(btn_prev)
-        
+        lay.addWidget(btn_prev)
+
         btn_bind = QtWidgets.QPushButton("B. BIND RIG")
         btn_bind.setStyleSheet("background-color: #5D99C6; color: white; font-weight: bold; padding: 6px;")
         btn_bind.clicked.connect(self.on_bind)
-        lay_build.addWidget(btn_bind)
-        
-        # Proxy Section
+        lay.addWidget(btn_bind)
+
         btn_proxy = QtWidgets.QPushButton("C. Create Weighted Proxy Only")
         btn_proxy.clicked.connect(self.on_proxy)
-        lay_build.addWidget(btn_proxy)
-        
-        main_lay.addWidget(grp_build)
-        
-        # Manage Group
-        grp_man = QtWidgets.QGroupBox("2. Manage")
-        lay_man = QtWidgets.QVBoxLayout(grp_man)
-        
+        lay.addWidget(btn_proxy)
+
+        return grp
+
+    def _manage_section(self):
+        grp = QtWidgets.QGroupBox("2. Manage")
+        lay = QtWidgets.QVBoxLayout(grp)
+
         self.list_rigs = QtWidgets.QListWidget()
         self.list_rigs.setFixedHeight(120)
-        lay_man.addWidget(self.list_rigs)
-        
+        lay.addWidget(self.list_rigs)
+
         h_man = QtWidgets.QHBoxLayout()
         btn_ref = QtWidgets.QPushButton("Refresh")
         btn_ref.clicked.connect(self.refresh_list)
         self.chk_res = QtWidgets.QCheckBox("Restore Pose")
-        h_man.addWidget(btn_ref); h_man.addWidget(self.chk_res)
-        lay_man.addLayout(h_man)
         
+        h_man.addWidget(btn_ref)
+        h_man.addWidget(self.chk_res)
+        lay.addLayout(h_man)
+
         btn_rem = QtWidgets.QPushButton("Remove Selected Rig")
         btn_rem.setStyleSheet("background-color: #C65D5D; color: white;")
         btn_rem.clicked.connect(self.on_remove)
-        lay_man.addWidget(btn_rem)
-        
-        main_lay.addWidget(grp_man)
-        main_lay.addStretch()
+        lay.addWidget(btn_rem)
 
-    def _detect_parent_object(self, base_name, chains):
-        # 1. Try finding existing DCM (Update Scenario)
-        clean_base = base_name.replace(":", "_")
-        dcm_name = f"{clean_base}_Parent_DCM"
-        if cmds.objExists(dcm_name):
-            inputs = cmds.listConnections(f"{dcm_name}.inputMatrix", s=True)
-            if inputs: return inputs[0]
-        
-        # 2. Try Bone Parent (New Bind Scenario)
-        if chains:
-            root_bone = chains[0][0]
-            if cmds.objExists(root_bone):
-                parents = cmds.listRelatives(root_bone, parent=True)
-                if parents:
-                    # Verify it's not a Rig internal group
-                    p = parents[0]
-                    if not p.endswith(MrsNaming.GRP_JNT) and not p.endswith(MrsNaming.GRP_MAIN):
-                        return p
-        return None
+        return grp
+
+    def on_pick_parent(self):
+        sel = cmds.ls(sl=True)
+        if sel:
+            self.txt_parent.setText(sel[0])
+        else:
+            self.txt_parent.clear()
 
     def on_preview(self):
-        sel = cmds.ls(sl=True, type="transform")
-        if not sel: return cmds.warning("Select Root Joints.")
-        
-        chains = utils.RigUtils.get_chains_from_selection(sel)
-        if not chains: return cmds.warning("No chains found.")
-        
         text, ok = QtWidgets.QInputDialog.getText(self, "Name", "Base Name:", text="Ribbon")
         if not ok or not text: return
         base = text.strip()
         
-        # Check Conflict
-        if cmds.objExists(f"{base}{MrsNaming.RIG_SET}"):
-            return QtWidgets.QMessageBox.warning(self, "Conflict", "Rig exists.")
-            
-        # Clean Old Preview
-        p_mesh = f"{base}{MrsNaming.MESH_PREVIEW}"
-        p_node = f"{base}{MrsNaming.NODE_PREVIEW}"
-        if cmds.objExists(p_mesh): cmds.delete(p_mesh)
-        if cmds.objExists(p_node): cmds.delete(p_node)
-        
-        cmds.undoInfo(openChunk=True, chunkName="MRS Preview")
-        try:
-            mesh, _, _, _ = self.mrs.create_preview_mesh(chains, base_name=base)
-            cmds.select(mesh)
-            print(f"[MRS] Preview: {base}")
-        except Exception as e:
-            traceback.print_exc()
-            show_error("Preview Error", str(e))
-        finally: cmds.undoInfo(closeChunk=True)
+        with _undo_chunk("MRS Preview"):
+            try:
+                parent_obj = self.mrs.process_preview_generation(base)
+                if parent_obj:
+                    self.txt_parent.setText(parent_obj)
+                print(f"[MRS] Preview Generated: {base}")
+            except Exception as e:
+                show_error("Preview Error", str(e))
 
     def on_bind(self):
-        sel = cmds.ls(sl=True)
-        if not sel: return show_error("Select Preview or Rig.")
-        
-        # Path A: Update Existing
-        rig_set = utils.RigUtils.get_rig_from_selection(sel)
-        if rig_set:
-            self._update_rig(rig_set)
-            return
-
-        # Path B: New Bind (from Preview)
-        raw_sel = sel[0]
-        t_node = None
-        s_node = None
-        
-        if cmds.nodeType(raw_sel) == "transform":
-            t_node = raw_sel
-            shapes = cmds.listRelatives(raw_sel, s=True)
-            if shapes: s_node = shapes[0]
-        elif cmds.nodeType(raw_sel) == "mesh":
-            s_node = raw_sel
-            parents = cmds.listRelatives(raw_sel, p=True)
-            if parents: t_node = parents[0]
-            
-        if not s_node or not t_node:
-             return show_error("Invalid Selection (Mesh/Transform required).")
-            
-        # Extract Node from Shape History
-        node = None
-        hist = cmds.listHistory(s_node) or []
-        for h in hist:
-            if cmds.nodeType(h) == MrsNaming.NODE_PLUGIN:
-                node = h; break
-        
-        if not node: return show_error("Invalid Selection (No Driver Node).")
-        
-        chains = utils.RigUtils.get_chains_from_ribbon_node(node)
-        if not chains: return show_error("Chain Data Missing.")
-        
-        # Get Base Name from Transform
-        base = "Ribbon"
-        if cmds.attributeQuery(MrsNaming.ATTR_BASE_NAME, node=t_node, exists=True):
-            base = cmds.getAttr(f"{t_node}.{MrsNaming.ATTR_BASE_NAME}")
-        
-        parent_obj = self._detect_parent_object(base, chains)
-
-        cmds.undoInfo(openChunk=True, chunkName="MRS Bind")
         try:
-            self.mrs.bind_from_preview(t_node, chains, 
-                                     self.chk_fk.isChecked(), 
-                                     self.chk_ik.isChecked(),
-                                     parent_object=parent_obj)
-            self.refresh_list()
+            ctx = self.mrs.get_bind_context()
         except Exception as e:
-            traceback.print_exc()
-            show_error("Bind Error", str(e))
-        finally: cmds.undoInfo(closeChunk=True)
+            return show_error("Bind Error", str(e))
 
-    def _update_rig(self, rig_set):
-        base = rig_set.replace(MrsNaming.RIG_SET, "")
-        
-        # Confirm
-        msg = f"Update '{base}'?\nFK: {self.chk_fk.isChecked()}\nIK: {self.chk_ik.isChecked()}"
-        if QtWidgets.QMessageBox.question(self, "Update", msg) != QtWidgets.QMessageBox.Yes: return
-        
-        # Find Components
-        follow_mod = f"{base}{MrsNaming.MESH_FOLLOW}"
-        if not cmds.objExists(follow_mod):
-            # Search Geo Set
-            geo_set = f"{base}{MrsNaming.GEO_SET}"
-            if cmds.objExists(geo_set):
-                for m in (cmds.sets(geo_set, q=True) or []):
-                    if MrsNaming.MESH_FOLLOW in m: follow_mod = m; break
-        
-        if not cmds.objExists(follow_mod): return show_error("Substrate Mesh Missing.")
-        
-        # Get Chains via Driver
-        chains = []
-        if cmds.attributeQuery(MrsNaming.ATTR_DRIVER_CONN, node=follow_mod, exists=True):
-            drv = cmds.listConnections(f"{follow_mod}.{MrsNaming.ATTR_DRIVER_CONN}")
-            if drv: chains = utils.RigUtils.get_chains_from_ribbon_node(drv[0])
-            
-        if not chains: return show_error("Chain Data Lost.")
-        
-        parent_obj = self._detect_parent_object(base, chains)
+        parent_obj = self.txt_parent.text().strip() or None
 
-        cmds.undoInfo(openChunk=True, chunkName="MRS Update")
-        try:
-            self.mrs.bind_from_preview(
-                preview_mesh=None,
-                chains=chains,
-                enable_fk=self.chk_fk.isChecked(),
-                enable_ik=self.chk_ik.isChecked(),
-                update_mode=True,
-                existing_follow_mesh=follow_mod,
-                existing_base_name=base,
-                parent_object=parent_obj
-            )
-            self.refresh_list()
-        except Exception as e:
-            traceback.print_exc()
-            show_error("Update Error", str(e))
-        finally: cmds.undoInfo(closeChunk=True)
+        if ctx["mode"] == "UPDATE":
+            base = ctx["base_name"]
+            msg = f"Update '{base}'?\nFK: {self.chk_fk.isChecked()}\nIK: {self.chk_ik.isChecked()}\nFollow: {self.chk_follow.isChecked()}"
+            if QtWidgets.QMessageBox.question(self, "Update", msg) != QtWidgets.QMessageBox.Yes: return
+
+            with _undo_chunk("MRS Update"):
+                try:
+                    self.mrs.process_update_rig(
+                        base_name=base,
+                        enable_fk=self.chk_fk.isChecked(),
+                        enable_ik=self.chk_ik.isChecked(),
+                        enable_follow=self.chk_follow.isChecked(),
+                        parent_obj=parent_obj
+                    )
+                    self.refresh_list()
+                except Exception as e:
+                    show_error("Update Error", str(e))
+        else:
+            with _undo_chunk("MRS Bind"):
+                try:
+                    self.mrs.bind_from_preview(
+                        preview_mesh=ctx["t_node"],
+                        chains=ctx["chains"],
+                        enable_fk=self.chk_fk.isChecked(),
+                        enable_ik=self.chk_ik.isChecked(),
+                        parent_object=parent_obj,
+                        enable_follow=self.chk_follow.isChecked()
+                    )
+                    self.refresh_list()
+                except Exception as e:
+                    show_error("Bind Error", str(e))
 
     def on_proxy(self):
-        sel = cmds.ls(sl=True)
-        if not sel: return show_error("Select Mesh or Rig Part.")
-        
-        target = None
-        # 1. Check Rig Context
-        rig_set = utils.RigUtils.get_rig_from_selection(sel)
-        if rig_set:
-            base = rig_set.replace(MrsNaming.RIG_SET, "")
-            # Try finding FollowMod
-            cand = f"{base}{MrsNaming.MESH_FOLLOW}"
-            if cmds.objExists(cand): target = cand
-            else:
-                # Search Geo Set
-                geo_set = f"{base}{MrsNaming.GEO_SET}"
-                if cmds.objExists(geo_set):
-                    for m in (cmds.sets(geo_set, q=True) or []):
-                        if MrsNaming.MESH_FOLLOW in m: target = m; break
-        
-        # 2. Direct Selection
-        if not target: target = sel[0]
-        
-        # Validate & Find Driver
-        node = None
-        shape = target
-        if cmds.nodeType(target) == "transform":
-            s = cmds.listRelatives(target, s=True)
-            if s: shape = s[0]
-            
-        # Try history (Preview)
-        hist = cmds.listHistory(shape) or []
-        for h in hist:
-            if cmds.nodeType(h) == MrsNaming.NODE_PLUGIN: node = h; break
-            
-        # Try Connection (FollowMod)
-        if not node and cmds.attributeQuery(MrsNaming.ATTR_DRIVER_CONN, node=target, exists=True):
-            c = cmds.listConnections(f"{target}.{MrsNaming.ATTR_DRIVER_CONN}")
-            if c: node = c[0]
-            
-        if not node: return show_error("No Driver Found.")
-        
-        chains = utils.RigUtils.get_chains_from_ribbon_node(node)
-        
-        # Determine Weighting Mode
-        # Pure IK = IK is ON and FK is OFF
         is_pure_ik = self.chk_ik.isChecked() and not self.chk_fk.isChecked()
-        
-        cmds.undoInfo(openChunk=True, chunkName="MRS Proxy")
-        try:
-            self.mrs.create_proxy_from_preview(target, chains, pure_ik=is_pure_ik)
-            print("[MRS] Proxy Created.")
-        except Exception as e: show_error("Proxy Error", str(e))
-        finally: cmds.undoInfo(closeChunk=True)
+        with _undo_chunk("MRS Proxy"):
+            try:
+                self.mrs.process_proxy_generation(is_pure_ik)
+                print("[MRS] Proxy Created.")
+            except Exception as e:
+                show_error("Proxy Error", str(e))
 
     def on_remove(self):
         # Priority 1: Scene Selection
@@ -351,12 +255,9 @@ class MatrixRibbonTool(QtWidgets.QWidget):
         
         if QtWidgets.QMessageBox.question(self, "Remove", f"Delete {set_name}?") != QtWidgets.QMessageBox.Yes: return
         
-        cmds.undoInfo(openChunk=True, chunkName="MRS Remove")
-        try:
+        with _undo_chunk("MRS Remove"):
             self.mrs.remove_rig(set_name, self.chk_res.isChecked())
             self.refresh_list()
-        except: traceback.print_exc()
-        finally: cmds.undoInfo(closeChunk=True)
 
     def refresh_list(self):
         self.list_rigs.clear()
@@ -365,13 +266,15 @@ class MatrixRibbonTool(QtWidgets.QWidget):
 
 def show():
     global _mrs_window_instance
+    _reload_all()
+
     win = get_maya_window()
     if not win: return
-    
+
     # Close existing
     for w in QtWidgets.QApplication.instance().topLevelWidgets():
         if w.objectName() == MatrixRibbonTool.WINDOW_NAME: w.close()
-        
+
     _mrs_window_instance = MatrixRibbonTool(parent=win)
     _mrs_window_instance.setObjectName(MatrixRibbonTool.WINDOW_NAME)
     _mrs_window_instance.show()
