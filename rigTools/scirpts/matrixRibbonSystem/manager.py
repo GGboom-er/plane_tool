@@ -98,11 +98,17 @@ class RigManager:
                 parents = cmds.listRelatives(j, parent=True)
                 if parents:
                     p_name = parents[0]
-                    # Check if parent is part of rig structure or is the stored parent_object
-                    if (p_name.endswith(MrsNaming.GRP_JNT) or p_name.endswith(MrsNaming.GRP_MAIN)
-                            or (stored_parent and p_name == stored_parent)):
-                        # 已按用户需求禁用强制解除层级行为： cmds.parent(j, world=True)
-                        pass
+                    # Check if parent is part of rig structure 
+                    if p_name.endswith(MrsNaming.GRP_JNT) or p_name.endswith(MrsNaming.GRP_MAIN):
+                        # 用户需求：当骨骼没有指定父物体时，移除绑定不应连带骨骼删除。
+                        # 我们只需要移除绑定时，将骨骼放置在parent即可，如果没有parent，默认就是世界层级
+                        try:
+                            if stored_parent and cmds.objExists(stored_parent):
+                                cmds.parent(j, stored_parent)
+                            else:
+                                cmds.parent(j, world=True)
+                        except Exception as e:
+                            print(f"[MRS Manager] Failed to unparent joint {j}: {e}")
 
         # 3. Delete Nodes (Priority)
         node_set = f"{base_name}{MrsNaming.NODE_SET}"
@@ -115,7 +121,10 @@ class RigManager:
         # 4. Delete Structure
         sets_to_check = [
             f"{base_name}{MrsNaming.GEO_SET}",
-            f"{base_name}{MrsNaming.CTRL_SET}"
+            f"{base_name}{MrsNaming.CTRL_SET}",
+            f"{base_name}{MrsNaming.FK_CTRL_SET}",
+            f"{base_name}{MrsNaming.IK_CTRL_SET}",
+            f"{base_name}{MrsNaming.GRP_CTRL_SET}"
         ]
         
         objs_to_delete = []

@@ -42,6 +42,9 @@ class MrsNaming:
     RIG_SET = "_Rig_Set"
     GEO_SET = "_Geo_Set"
     CTRL_SET = "_Ctrl_Set"
+    FK_CTRL_SET = "_FK_Ctrl_Set"
+    IK_CTRL_SET = "_IK_Ctrl_Set"
+    GRP_CTRL_SET = "_Grp_Ctrl_Set"
     NODE_SET = "_Node_Set"
     JNT_SET = "_Jnt_Set"
 
@@ -83,8 +86,8 @@ class MrsNaming:
     NODE_PLUGIN = "matrixRibbonMesh"
 
     # Controller size coefficients
-    FK_CTRL_SCALE = 1.2
-    IK_CTRL_SCALE = 0.72  # 1.2 * 0.6
+    FK_CTRL_SCALE = 1.0
+    IK_CTRL_SCALE = 1.0
 
     # Auto topology calculation ratios
     AUTO_WIDTH_RATIO = 0.25
@@ -501,10 +504,11 @@ class RigUtils:
     @staticmethod
     def create_control_shape(name: str, size: float = 1.0, shape_type: str = "circle") -> str:
         import ctrl_shapes
+        # User requested 1:1 original scale mapping, ignore the dynamically passed 'size' 
         if shape_type == "circle":
-            ctrl, color = ctrl_shapes.create_fk_shape(name, size)
+            ctrl, color = ctrl_shapes.create_fk_shape(name, 1.0)
         else:
-            ctrl, color = ctrl_shapes.create_ik_shape(name, size)
+            ctrl, color = ctrl_shapes.create_ik_shape(name, 1.0)
 
         shapes = cmds.listRelatives(ctrl, shapes=True, fullPath=True)
         if shapes:

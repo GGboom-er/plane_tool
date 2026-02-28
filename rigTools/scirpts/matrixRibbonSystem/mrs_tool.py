@@ -194,9 +194,7 @@ class MatrixRibbonTool(QtWidgets.QWidget):
                     break
                 except Exception as e:
                     if "already exists" in str(e).lower():
-                        # Directly reuse the UI prompt next loop with the already typed name, 
-                        # showing the standard error to inform them first.
-                        show_error("Name Exists", str(e))
+                        # 直接静默复用重命名输入窗口，不再弹出错误提示
                         base_text = base
                     else:
                         show_error("Preview Error", str(e))

@@ -324,7 +324,7 @@ class MathNetworkBuilder:
 
         size = self._calculate_adaptive_size(ctx, MrsNaming.FK_CTRL_SCALE)
         ctrl = self._ensure_control(ctrl_name, grp, size, "circle")
-        comps["ctrls"].append(ctrl)
+        comps["fk_ctrls"].append(ctrl)
 
         target_pin = self._build_spatial_opm(ctx, ctrl, grp, comps, ctx.enable_follow, comp_type="FK")
         return {"grp": grp, "ctrl": ctrl, "target_pin": target_pin}
@@ -365,7 +365,7 @@ class MathNetworkBuilder:
 
         size = self._calculate_adaptive_size(ctx, MrsNaming.IK_CTRL_SCALE)
         ctrl = self._ensure_control(ctrl_name, grp, size, "square")
-        comps["ctrls"].append(ctrl)
+        comps["ik_ctrls"].append(ctrl)
 
         target_pin = None
         if is_fk_active:
@@ -530,9 +530,14 @@ class HierarchyNodeBuilder:
 
     def _organize_sets(self, base, data, geo, joints, update):
         sets = {}
-        # 控制器 + Offset 组合并到 CTRL_SET
-        ctrl_members = data["ctrls"] + data["groups"]
-        types = [(MrsNaming.CTRL_SET, ctrl_members), (MrsNaming.NODE_SET, data["nodes"])]
+        
+        # Create standard NodeSet and sub-control sets
+        types = [
+            (MrsNaming.NODE_SET, data.get("nodes", [])),
+            (MrsNaming.FK_CTRL_SET, data.get("fk_ctrls", [])),
+            (MrsNaming.IK_CTRL_SET, data.get("ik_ctrls", [])),
+            (MrsNaming.GRP_CTRL_SET, data.get("groups", []))
+        ]
 
         for set_suffix, members in types:
             s_name = f"{base}{set_suffix}"
@@ -544,6 +549,18 @@ class HierarchyNodeBuilder:
             valid = [m for m in members if cmds.objExists(m)] if members else []
             if valid: cmds.sets(valid, add=s_name)
             sets[set_suffix] = s_name
+            
+        # Parent the IK/FK/GRP sets into a main CTRL_SET
+        ctrl_root = f"{base}{MrsNaming.CTRL_SET}"
+        if not cmds.objExists(ctrl_root): ctrl_root = cmds.sets(name=ctrl_root, empty=True)
+        sets["Ctrl"] = ctrl_root
+        
+        # Ensure hierarchy integration for the Sub-sets
+        sub_sets = [sets.get(MrsNaming.FK_CTRL_SET), sets.get(MrsNaming.IK_CTRL_SET), sets.get(MrsNaming.GRP_CTRL_SET)]
+        for sub in sub_sets:
+            if sub and cmds.objExists(sub):
+                if not cmds.sets(sub, isMember=ctrl_root):
+                    cmds.sets(sub, add=ctrl_root)
             
         if not update:
             s_geo = cmds.sets(name=f"{base}{MrsNaming.GEO_SET}", empty=True)
@@ -561,6 +578,9 @@ class HierarchyNodeBuilder:
         if not cmds.objExists(main_set): main_set = cmds.sets(name=main_set, empty=True)
         
         for k in sets:
+            # Prevent sub-sets from being repeatedly added to the root set, avoiding duplicated outliner hierarchies
+            if k in [MrsNaming.FK_CTRL_SET, MrsNaming.IK_CTRL_SET, MrsNaming.GRP_CTRL_SET]:
+                continue
             if cmds.objExists(sets[k]): cmds.sets(sets[k], add=main_set)
 
 
@@ -606,7 +626,7 @@ class RigBuilder(GeometryNodeBuilder, MathNetworkBuilder, HierarchyNodeBuilder, 
         uv_pin, u_vals, v_vals = self._setup_uv_pin(mesh_transform, clean_name, chains, loop, config.passed_uvpin)
 
         rig_grp = self._ensure_group(f"{clean_name}{MrsNaming.GRP_CTRL}")
-        comps = {"ctrls": [], "groups": [rig_grp], "nodes": [uv_pin], "drivers": []}
+        comps = {"fk_ctrls": [], "ik_ctrls": [], "groups": [rig_grp], "nodes": [uv_pin], "drivers": []}
 
         if not config.enable_fk:
             self._preserve_ik_offsets(chains, clean_name, rig_grp)
