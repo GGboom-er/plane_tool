@@ -101,7 +101,8 @@ class RigManager:
                     # Check if parent is part of rig structure or is the stored parent_object
                     if (p_name.endswith(MrsNaming.GRP_JNT) or p_name.endswith(MrsNaming.GRP_MAIN)
                             or (stored_parent and p_name == stored_parent)):
-                        cmds.parent(j, world=True)
+                        # 已按用户需求禁用强制解除层级行为： cmds.parent(j, world=True)
+                        pass
 
         # 3. Delete Nodes (Priority)
         node_set = f"{base_name}{MrsNaming.NODE_SET}"

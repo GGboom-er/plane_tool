@@ -394,12 +394,7 @@ class RigUtils:
             m_driver = om.MMatrix(cmds.xform(driver, q=True, ws=True, m=True))
             m_offset = m_driven * m_driver.inverse()
 
-        is_identity = True
-        for i in range(16):
-            target = 1.0 if (i % 5) == 0 else 0.0
-            if abs(m_offset[i] - target) > 0.001:
-                is_identity = False
-                break
+        is_identity = m_offset.isEquivalent(om.MMatrix.kIdentity, 0.001)
 
         parents = cmds.listRelatives(driven, parent=True)
 
@@ -444,6 +439,18 @@ class RigUtils:
         avg_len = total_len / num_segments if num_segments > 0 else 1.0
 
         return max(avg_len * MrsNaming.AUTO_WIDTH_RATIO, 0.01), max(avg_len * MrsNaming.AUTO_HOLD_RATIO, 0.001)
+
+    @staticmethod
+    def get_bone_distance(jnt1: str, jnt2: str) -> float:
+        """Calculate true Euclidean distance between two transforms in world space."""
+        import maya.api.OpenMaya as om
+        try:
+            p1 = om.MPoint(cmds.xform(jnt1, q=True, ws=True, t=True))
+            p2 = om.MPoint(cmds.xform(jnt2, q=True, ws=True, t=True))
+            return (p1 - p2).length()
+        except RuntimeError as e:
+            logger.warning(f"Failed to calculate distance between {jnt1} and {jnt2}: {e}")
+            return 1.0
 
     @staticmethod
     def get_chains_from_mesh(mesh: str) -> list:

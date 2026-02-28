@@ -27,11 +27,11 @@ class _BuildContext:
     """Per-bone build state passed between component builders."""
     __slots__ = ('base', 'c', 'i', 'pin', 'prev_pin', 'prev_fk', 'prev_target',
                  'chain_grp', 'width', 'parent_object', 'scale_plug',
-                 'inv_scale_mtx', 'scale_mtx', 'enable_follow')
+                 'inv_scale_mtx', 'scale_mtx', 'enable_follow', 'chain')
 
     def __init__(self, base, c, i, pin, prev_pin, prev_fk, prev_target,
                  chain_grp, width, parent_object, scale_plug,
-                 inv_scale_mtx, scale_mtx, enable_follow):
+                 inv_scale_mtx, scale_mtx, enable_follow, chain):
         self.base = base
         self.c = c
         self.i = i
@@ -46,6 +46,7 @@ class _BuildContext:
         self.inv_scale_mtx = inv_scale_mtx
         self.scale_mtx = scale_mtx
         self.enable_follow = enable_follow
+        self.chain = chain
 
 
 
@@ -231,29 +232,11 @@ class MathNetworkBuilder:
                     if cmds.listRelatives(ik_grp, parent=True) != [rig_grp]:
                         cmds.parent(ik_grp, rig_grp)
 
-    def _build_fk_component(self, ctx, comps):
+    def _build_spatial_opm(self, ctx, ctrl, grp, comps, enable_follow, comp_type="FK"):
         import maya.api.OpenMaya as om
-        grp_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, MrsNaming.FK_OFFSET)
-        ctrl_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, MrsNaming.FK_CTRL)
         
-        # 强制清理：为了保证 Update Rig 及模式来回切换不报错，提前拆除当前层级的旧运算节点
-        for suf in ["_TargetFallback", "_TargetOutput", "_OPM", "_OPMBlend", "_PrevTargetInv", "_LiveLocal", "_LiveWorldMM"]:
-            node = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, suf)
-            if cmds.objExists(node): cmds.delete(node)
-
-        grp = self._ensure_group(grp_name, parent=ctx.prev_fk)
-        comps["groups"].append(grp)
-
-        size = ctx.width * MrsNaming.FK_CTRL_SCALE
-        ctrl = self._ensure_control(ctrl_name, grp, size, "circle")
-        comps["ctrls"].append(ctrl)
-
-        # ---------------------------------------------------------------------
-        # 三层解耦架构: 第一部分 - 空间独立目标 (Space Target)
-        # ---------------------------------------------------------------------
-        # 1. World_Live: 纯跟随 Mesh 的目标
         if ctx.scale_mtx:
-            live_mm_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, "_LiveWorldMM")
+            live_mm_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, f"_{comp_type}_LiveWorldMM")
             if cmds.objExists(live_mm_name): cmds.delete(live_mm_name)
             live_mm = cmds.createNode("multMatrix", name=live_mm_name)
             cmds.connectAttr(ctx.scale_mtx, f"{live_mm}.matrixIn[0]")
@@ -263,21 +246,12 @@ class MathNetworkBuilder:
         else:
             target_mesh = ctx.pin
 
-        # ---------------------------------------------------------------------
-        # 三层解耦架构: 终版 - 基于子空间局部变形的 OPM 计算
-        # ---------------------------------------------------------------------
-        # 所有的算式必须在子物体的 OPM 空间（即父物体世界控制空间）中直接发生！
-        # 才能使得子物体的跟随变形（Mesh 拉伸）与层级跟随（父级FK旋转）不仅不排斥，还能相互物理叠加！
-        # 核心原理：OPM = 本节_UV_位置 * 上一节_UV_引脚_逆
-        # 这是有史以来最简洁干净的空间正解。
-
-        # target_mesh is already defined above, it's the pin with scale applied if needed.
-        
-        # 优化版局部空间混合体系 (Local Space Matrix Blending)
         bind_mesh_raw = cmds.getAttr(target_mesh)
         if bind_mesh_raw and isinstance(bind_mesh_raw[0], (list, tuple)): bind_mesh_raw = list(bind_mesh_raw[0])
         
-        if ctx.i == 0:
+        is_root = (ctx.i == 0) or (comp_type == "IK")
+        
+        if is_root:
             if ctx.parent_object and cmds.objExists(ctx.parent_object):
                 prev_target_bind = cmds.getAttr(f"{ctx.parent_object}.worldMatrix[0]")
                 prev_target_plug = f"{ctx.parent_object}.worldMatrix[0]"
@@ -290,55 +264,70 @@ class MathNetworkBuilder:
             
         if prev_target_bind and isinstance(prev_target_bind[0], (list, tuple)): prev_target_bind = list(prev_target_bind[0])
         
-        # 无论在第几层，它的 OffsetBind_i 都是相对于上一节隐形目标链空间的局部变换(完全静止的理想值)
         offset_bind_mm = list(om.MMatrix(bind_mesh_raw) * om.MMatrix(prev_target_bind).inverse())
-        
-        # 计算当前针尖相对于上一节目标链的纯形变扭曲矩阵 (Local Space Follow)
-        live_local_mm = cmds.createNode("multMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, "_LiveLocal"))
+
+        live_local_mm = cmds.createNode("multMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, f"_{comp_type}_LiveLocal"))
         comps["nodes"].append(live_local_mm)
         cmds.connectAttr(target_mesh, f"{live_local_mm}.matrixIn[0]")
         
-        # We need the inverse of the previous pure target space
-        prev_inv_node = cmds.createNode("inverseMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, "_PrevTargetInv"))
+        prev_inv_node = cmds.createNode("inverseMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, f"_{comp_type}_PrevTargetInv"))
         comps["nodes"].append(prev_inv_node)
         cmds.connectAttr(prev_target_plug, f"{prev_inv_node}.inputMatrix")
         cmds.connectAttr(f"{prev_inv_node}.outputMatrix", f"{live_local_mm}.matrixIn[1]")
         
-        # 直接在 Local 空间对 Offset_Bind 和实际形变坐标进行 Blend，避免大规模转身的翻转
-        opm_blend = cmds.createNode("blendMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, "_OPMBlend"))
-        comps["nodes"].append(opm_blend)
-        cmds.setAttr(f"{opm_blend}.inputMatrix", offset_bind_mm, type="matrix")        
-        cmds.connectAttr(f"{live_local_mm}.matrixSum", f"{opm_blend}.target[0].targetMatrix")
-        cmds.setAttr(f"{opm_blend}.target[0].weight", 1.0)
+        opm_output_plug = f"{live_local_mm}.matrixSum"
+
+        if enable_follow:
+            opm_blend = cmds.createNode("blendMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, f"_{comp_type}_OPMBlend"))
+            comps["nodes"].append(opm_blend)
+            cmds.setAttr(f"{opm_blend}.inputMatrix", offset_bind_mm, type="matrix")        
+            cmds.connectAttr(f"{live_local_mm}.matrixSum", f"{opm_blend}.target[0].targetMatrix")
+            cmds.setAttr(f"{opm_blend}.target[0].weight", 1.0)
+            
+            if not cmds.attributeQuery(MrsNaming.ATTR_FOLLOW_MESH, node=ctrl, exists=True):
+                cmds.addAttr(ctrl, ln=MrsNaming.ATTR_FOLLOW_MESH, at="float", min=0, max=1, dv=1, k=True)
+            cmds.connectAttr(f"{ctrl}.{MrsNaming.ATTR_FOLLOW_MESH}", f"{opm_blend}.envelope")
+            opm_output_plug = f"{opm_blend}.outputMatrix"
         
-        if not cmds.attributeQuery(MrsNaming.ATTR_FOLLOW_MESH, node=ctrl, exists=True):
-            cmds.addAttr(ctrl, ln=MrsNaming.ATTR_FOLLOW_MESH, at="float", min=0, max=1, dv=1, k=True)
-        cmds.connectAttr(f"{ctrl}.{MrsNaming.ATTR_FOLLOW_MESH}", f"{opm_blend}.envelope")
-        
-        opm_output_plug = f"{opm_blend}.outputMatrix"
-        
-        # 修正：当大纲挂载节点非实际目标时（第一节），必须补偿 Outliner 的静态原点差分
-        # 注意：禁止抽取 grp.parentInverseMatrix，否则将诱发 Maya Node-Level 的 DG Cycle 死锁警告。
-        # 此时 grp 的母体正是 ctx.prev_fk，故抽取它的 worldInverseMatrix
-        if ctx.i == 0:
-            opm_final_mm = cmds.createNode("multMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, "_OPMInject"))
+        if is_root:
+            out_p = ctx.prev_fk if cmds.objExists(ctx.prev_fk) else ctx.chain_grp
+            opm_final_mm = cmds.createNode("multMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, f"_{comp_type}_OPMInject"))
             comps["nodes"].append(opm_final_mm)
             cmds.connectAttr(opm_output_plug, f"{opm_final_mm}.matrixIn[0]")
             cmds.connectAttr(prev_target_plug, f"{opm_final_mm}.matrixIn[1]")
-            cmds.connectAttr(f"{ctx.prev_fk}.worldInverseMatrix[0]", f"{opm_final_mm}.matrixIn[2]")
+            cmds.connectAttr(f"{out_p}.worldInverseMatrix[0]", f"{opm_final_mm}.matrixIn[2]")
             cmds.connectAttr(f"{opm_final_mm}.matrixSum", f"{grp}.offsetParentMatrix")
         else:
             cmds.connectAttr(opm_output_plug, f"{grp}.offsetParentMatrix")
         
-        # 传递给下级的基准链空间 Target_i = Local_Blend * Target_prev
-        target_out_node = cmds.createNode("multMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, "_TargetOutput"))
+        target_out_node = cmds.createNode("multMatrix", name=RigUtils.generate_name(ctx.base, ctx.c, ctx.i, f"_{comp_type}_TargetOutput"))
         comps["nodes"].append(target_out_node)
         cmds.connectAttr(opm_output_plug, f"{target_out_node}.matrixIn[0]")
         cmds.connectAttr(prev_target_plug, f"{target_out_node}.matrixIn[1]")
 
         RigUtils.zero_out_local(grp)
 
-        return {"grp": grp, "ctrl": ctrl, "target_pin": f"{target_out_node}.matrixSum"}
+        return f"{target_out_node}.matrixSum"
+
+    def _build_fk_component(self, ctx, comps):
+        grp_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, MrsNaming.FK_OFFSET)
+        ctrl_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, MrsNaming.FK_CTRL)
+        
+        for suf in ["_TargetFallback", "_TargetOutput", "_OPM", "_OPMBlend", "_PrevTargetInv", "_LiveLocal", "_LiveWorldMM", "_OPMInject"]:
+            node = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, f"_FK{suf}")
+            if cmds.objExists(node): cmds.delete(node)
+            old_node = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, suf)
+            if cmds.objExists(old_node): cmds.delete(old_node)
+
+        grp = self._ensure_group(grp_name, parent=ctx.prev_fk)
+        comps["groups"].append(grp)
+
+        size = self._calculate_adaptive_size(ctx, MrsNaming.FK_CTRL_SCALE)
+        ctrl = self._ensure_control(ctrl_name, grp, size, "circle")
+        comps["ctrls"].append(ctrl)
+
+        target_pin = self._build_spatial_opm(ctx, ctrl, grp, comps, ctx.enable_follow, comp_type="FK")
+        return {"grp": grp, "ctrl": ctrl, "target_pin": target_pin}
 
     def _clean_fk_component(self, ctx):
         grp_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, MrsNaming.FK_OFFSET)
@@ -357,6 +346,12 @@ class MathNetworkBuilder:
         grp_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, MrsNaming.IK_OFFSET)
         ctrl_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, MrsNaming.IK_CTRL)
         
+        for suf in ["_TargetFallback", "_TargetOutput", "_OPM", "_OPMBlend", "_PrevTargetInv", "_LiveLocal", "_LiveWorldMM", "_OPMInject"]:
+            node = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, f"_IK{suf}")
+            if cmds.objExists(node): cmds.delete(node)
+            old_node = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, suf)
+            if cmds.objExists(old_node): cmds.delete(old_node)
+
         grp = self._ensure_group(grp_name, parent=parent)
         comps["groups"].append(grp)
         
@@ -368,19 +363,20 @@ class MathNetworkBuilder:
         if not cmds.getAttr(v_plug, lock=True):
             cmds.setAttr(v_plug, 1)
 
+        size = self._calculate_adaptive_size(ctx, MrsNaming.IK_CTRL_SCALE)
+        ctrl = self._ensure_control(ctrl_name, grp, size, "square")
+        comps["ctrls"].append(ctrl)
+
+        target_pin = None
         if is_fk_active:
             RigUtils.delete_opm_nodes(grp)
             RigUtils.zero_out_local(grp)
         else:
             RigUtils.delete_opm_nodes(grp)
-            cmds.connectAttr(ctx.pin, f"{grp}.offsetParentMatrix", force=True)
-            RigUtils.zero_out_local(grp)
+            # Pure IK: build the full spatial OPM matrix to inherit parent scales and support exact follow envelope!
+            target_pin = self._build_spatial_opm(ctx, ctrl, grp, comps, ctx.enable_follow, comp_type="IK")
             
-        size = ctx.width * MrsNaming.IK_CTRL_SCALE
-        ctrl = self._ensure_control(ctrl_name, grp, size, "square")
-        comps["ctrls"].append(ctrl)
-        
-        return {"grp": grp, "ctrl": ctrl}
+        return {"grp": grp, "ctrl": ctrl, "target_pin": target_pin}
 
     def _clean_ik_component(self, ctx):
         grp_name = RigUtils.generate_name(ctx.base, ctx.c, ctx.i, MrsNaming.IK_OFFSET)
@@ -388,56 +384,7 @@ class MathNetworkBuilder:
             RigUtils.delete_opm_nodes(grp_name)
             cmds.delete(grp_name)
 
-    def _connect_opm(self, source_plug, target_node):
-        cmds.connectAttr(source_plug, f"{target_node}.offsetParentMatrix", force=True)
 
-    def _connect_opm_with_scale(self, pin_plug, target_node, scale_mtx_plug, node_list):
-        """Connect uvPin output to OPM with scale injection via shared composeMatrix + multMatrix."""
-        mm_name = f"{target_node}_ScaleMM"
-        if cmds.objExists(mm_name):
-            cmds.delete(mm_name)
-        mm = cmds.createNode("multMatrix", name=mm_name)
-        cmds.connectAttr(scale_mtx_plug, f"{mm}.matrixIn[0]")
-        cmds.connectAttr(pin_plug, f"{mm}.matrixIn[1]")
-        node_list.append(mm)
-
-        cmds.connectAttr(f"{mm}.matrixSum", f"{target_node}.offsetParentMatrix", force=True)
-
-    def _connect_opm_relative(self, curr_pin, prev_pin, target_node, node_list, pre_plugs=None, post_plugs=None):
-        opm_name = f"{target_node}_OPM"
-        inv_name = f"{target_node}_PinInv"
-
-        for old in (opm_name, inv_name):
-            if cmds.objExists(old):
-                cmds.delete(old)
-
-        opm = cmds.createNode("multMatrix", name=opm_name)
-        node_list.append(opm)
-
-        slot = 0
-        for plug in (pre_plugs or []):
-            cmds.connectAttr(plug, f"{opm}.matrixIn[{slot}]")
-            slot += 1
-
-        cmds.connectAttr(curr_pin, f"{opm}.matrixIn[{slot}]")
-        slot += 1
-
-        # Optimization: if prev_pin is a worldMatrix, use worldInverseMatrix directly
-        if prev_pin.endswith(".worldMatrix[0]"):
-            inv_plug = prev_pin.replace(".worldMatrix[0]", ".worldInverseMatrix[0]")
-            cmds.connectAttr(inv_plug, f"{opm}.matrixIn[{slot}]")
-        else:
-            inv = cmds.createNode("inverseMatrix", name=inv_name)
-            node_list.append(inv)
-            cmds.connectAttr(prev_pin, f"{inv}.inputMatrix", force=True)
-            cmds.connectAttr(f"{inv}.outputMatrix", f"{opm}.matrixIn[{slot}]")
-        slot += 1
-
-        for plug in (post_plugs or []):
-            cmds.connectAttr(plug, f"{opm}.matrixIn[{slot}]")
-            slot += 1
-
-        cmds.connectAttr(f"{opm}.matrixSum", f"{target_node}.offsetParentMatrix", force=True)
 
 
 class HierarchyNodeBuilder:
@@ -453,7 +400,28 @@ class HierarchyNodeBuilder:
                 cmds.parent(grp, parent)
         return grp
 
-    def _ensure_control(self, name, parent, size, shape_type):
+    def _calculate_adaptive_size(self, ctx, scale_ratio: float) -> float:
+        """Calculate local size based on distance between current bone and next bone."""
+        if not ctx.chain:
+            return ctx.width * scale_ratio
+
+        curr_bone = ctx.chain[ctx.i]
+        
+        # 1. 尝试找下一根骨骼求距离
+        if ctx.i + 1 < len(ctx.chain):
+            next_bone = ctx.chain[ctx.i + 1]
+            dist = RigUtils.get_bone_distance(curr_bone, next_bone)
+        # 2. 如果是末端，且存在上一根骨骼，则继承上一根骨架的测距
+        elif ctx.i - 1 >= 0:
+            prev_bone = ctx.chain[ctx.i - 1]
+            dist = RigUtils.get_bone_distance(prev_bone, curr_bone)
+        # 3. 如果这串链条里只有孤零零的一根骨骼，退回到使用全局/面片宽度
+        else:
+            dist = ctx.width
+            
+        return dist * scale_ratio
+
+    def _ensure_control(self, name, parent, size, shape_type="circle"):
         if not cmds.objExists(name):
             ctrl = RigUtils.create_control_shape(name, size=size, shape_type=shape_type)
         else: ctrl = name
@@ -497,31 +465,6 @@ class HierarchyNodeBuilder:
             n = f"{clean_base}{suffix}"
             if cmds.objExists(n):
                 cmds.delete(n)
-
-    def _connect_scale_driver(self, dcm, chains, enable_fk, enable_ik, clean_base, node_list=None):
-        """Pure IK only: connect DCM scale to all IK_Offsets.
-
-        FK scale is handled via OPM injection in build_rig_structure.
-        """
-        if enable_ik and not enable_fk:
-            dcm_scale = f"{dcm}.outputScale"
-            for c_idx, chain in enumerate(chains):
-                for i in range(len(chain)):
-                    ik_grp = RigUtils.generate_name(clean_base, c_idx, i, MrsNaming.IK_OFFSET)
-                    if cmds.objExists(ik_grp):
-                        cmds.connectAttr(dcm_scale, f"{ik_grp}.scale", force=True)
-
-    def _setup_parent_scale(self, parent_object, clean_base, rig_data, chains, enable_fk, enable_ik):
-        """Handle Pure IK scale connections.
-
-        FK scale is handled via OPM injection in build_rig_structure.
-        Cleanup is done before build_rig_structure in finalize_bind.
-        """
-        if not parent_object or not cmds.objExists(parent_object):
-            return
-        dcm_name = f"{clean_base}_Parent_DCM"
-        if cmds.objExists(dcm_name):
-            self._connect_scale_driver(dcm_name, chains, enable_fk, enable_ik, clean_base, rig_data["nodes"])
 
     def _organize_hierarchy(self, clean_base, chains, rig_data, follow_mesh, parent_object, update_mode):
         """Organize main_grp, jnt_grp hierarchy and parent joints."""
@@ -724,7 +667,8 @@ class RigBuilder(GeometryNodeBuilder, MathNetworkBuilder, HierarchyNodeBuilder, 
                     prev_fk=prev_fk_ctrl, prev_target=prev_target_plug, chain_grp=chain_grp,
                     width=rig_width, parent_object=config.parent_object,
                     scale_plug=scale_plug, inv_scale_mtx=inv_scale_mtx_plug,
-                    scale_mtx=scale_mtx_plug, enable_follow=config.enable_follow
+                    scale_mtx=scale_mtx_plug, enable_follow=config.enable_follow,
+                    chain=chain
                 )
 
                 current_driver = None
@@ -737,10 +681,10 @@ class RigBuilder(GeometryNodeBuilder, MathNetworkBuilder, HierarchyNodeBuilder, 
 
                     if i == 0:
                         chain_root_fk = fk_res["ctrl"]
-                        if not cmds.attributeQuery(MrsNaming.ATTR_SHOW_IK, node=chain_root_fk, exists=True):
+                        if config.enable_ik and not cmds.attributeQuery(MrsNaming.ATTR_SHOW_IK, node=chain_root_fk, exists=True):
                             cmds.addAttr(chain_root_fk, longName=MrsNaming.ATTR_SHOW_IK, attributeType="bool", keyable=True, defaultValue=1)
                     else:
-                        if chain_root_fk and not cmds.attributeQuery(MrsNaming.ATTR_SHOW_IK, node=fk_res["ctrl"], exists=True):
+                        if chain_root_fk and config.enable_ik and not cmds.attributeQuery(MrsNaming.ATTR_SHOW_IK, node=fk_res["ctrl"], exists=True):
                             cmds.addAttr(fk_res["ctrl"], longName=MrsNaming.ATTR_SHOW_IK, proxy=f"{chain_root_fk}.{MrsNaming.ATTR_SHOW_IK}")
                 else:
                     self._clean_fk_component(ctx)
@@ -786,7 +730,6 @@ class RigBuilder(GeometryNodeBuilder, MathNetworkBuilder, HierarchyNodeBuilder, 
         )
         rig_data = self.build_rig_structure(follow_mesh, chains, name=base_name, config=build_config)
 
-        self._setup_parent_scale(config.parent_object, clean_base, rig_data, chains, config.enable_fk, config.enable_ik)
         self._organize_hierarchy(clean_base, chains, rig_data, follow_mesh, config.parent_object, config.update_mode)
         self._bind_bones_to_drivers(chains, rig_data)
 

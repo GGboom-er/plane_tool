@@ -179,18 +179,28 @@ class MatrixRibbonTool(QtWidgets.QWidget):
             self.txt_parent.clear()
 
     def on_preview(self):
-        text, ok = QtWidgets.QInputDialog.getText(self, "Name", "Base Name:", text="Ribbon")
-        if not ok or not text: return
-        base = text.strip()
-        
-        with _undo_chunk("MRS Preview"):
-            try:
-                parent_obj = self.mrs.process_preview_generation(base)
-                if parent_obj:
-                    self.txt_parent.setText(parent_obj)
-                print(f"[MRS] Preview Generated: {base}")
-            except Exception as e:
-                show_error("Preview Error", str(e))
+        base_text = "Ribbon"
+        while True:
+            text, ok = QtWidgets.QInputDialog.getText(self, "Name", "Base Name:", text=base_text)
+            if not ok or not text: return
+            base = text.strip()
+            
+            with _undo_chunk("MRS Preview"):
+                try:
+                    parent_obj = self.mrs.process_preview_generation(base)
+                    if parent_obj:
+                        self.txt_parent.setText(parent_obj)
+                    print(f"[MRS] Preview Generated: {base}")
+                    break
+                except Exception as e:
+                    if "already exists" in str(e).lower():
+                        # Directly reuse the UI prompt next loop with the already typed name, 
+                        # showing the standard error to inform them first.
+                        show_error("Name Exists", str(e))
+                        base_text = base
+                    else:
+                        show_error("Preview Error", str(e))
+                        break
 
     def on_bind(self):
         try:
