@@ -504,11 +504,11 @@ class RigUtils:
     @staticmethod
     def create_control_shape(name: str, size: float = 1.0, shape_type: str = "circle") -> str:
         import ctrl_shapes
-        # User requested 1:1 original scale mapping, ignore the dynamically passed 'size' 
+        # Passing dynamic size from builder adaptive calculation
         if shape_type == "circle":
-            ctrl, color = ctrl_shapes.create_fk_shape(name, 1.0)
+            ctrl, color = ctrl_shapes.create_fk_shape(name, size)
         else:
-            ctrl, color = ctrl_shapes.create_ik_shape(name, 1.0)
+            ctrl, color = ctrl_shapes.create_ik_shape(name, size)
 
         shapes = cmds.listRelatives(ctrl, shapes=True, fullPath=True)
         if shapes:
