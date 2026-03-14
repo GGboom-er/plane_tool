@@ -1,0 +1,24 @@
+How to install LMspring3:
+
+
+
+Just drag the file "LMspring3_Drag&Drop_Install.mel" into Maya's viewport.
+
+
+
+
+
+Alternatively, you can copy the LMscript3 folder into your scripts folder:
+
+	(Windows) \Users\<username>\Documents\maya\scripts
+
+	(Linux)$HOME/maya/scripts
+
+	(Mac OS X) $HOME/Library/Preferences/Autodesk/maya/scripts
+
+	
+And run this python code:
+
+import LMspring3.LMspring3 as lms3
+lmspring=lms3.LMspring()
+lmspring.showUI()

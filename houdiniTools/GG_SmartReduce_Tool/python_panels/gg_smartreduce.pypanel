@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pythonPanelDocument>
+  <interface name="GG_SmartReduce" label="Smart PolyReduce" icon="SOP_polyreduce" showNetworkNavigationBar="false" help_url="">
+    <script><![CDATA[
+import PolyReduce_UI
+import importlib
+
+# Reload for dev (can be removed for prod)
+try:
+    importlib.reload(PolyReduce_UI)
+except: pass
+
+def createInterface():
+    return PolyReduce_UI.SmartPolyReduceUI()
+]]></script>
+  </interface>
+</pythonPanelDocument>

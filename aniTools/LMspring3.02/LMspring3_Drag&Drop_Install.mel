@@ -1,0 +1,49 @@
+// LMspring 3 - install file
+// twitter: @luismiherrera
+
+string $srcWindows=`asInstallScriptLocation`;
+string $destWindows = `internalVar -userScriptDir`;
+string $initfile = "__init__.py";
+string $lmspring3file = "LMspring3.py";
+string $lmspring3Iconfile = "LMspring3Icon.png";
+string $lmspring3PresetIconfile = "LMspring3PresetIcon.png";
+string $lmspring3PresetTIconfile = "LMspring3PresetTIcon.png";
+string $lmspringFolder = "LMspring3/";
+
+global string $gShelfTopLevel;
+string $currentShelf = `tabLayout -query -selectTab $gShelfTopLevel`;
+setParent $currentShelf;
+string $iconExt="png";
+string $icon=$destWindows+"LMspring3/LMspring3Icon."+$iconExt;
+
+sysFile -makeDir ($destWindows+"LMspring3");
+sysFile -copy ($destWindows+$lmspringFolder+$initfile) ($srcWindows+$lmspringFolder+$initfile);
+sysFile -copy ($destWindows+$lmspringFolder+$lmspring3file) ($srcWindows+$lmspringFolder+$lmspring3file);
+sysFile -copy ($destWindows+$lmspringFolder+$lmspring3Iconfile) ($srcWindows+$lmspringFolder+$lmspring3Iconfile);
+sysFile -copy ($destWindows+$lmspringFolder+$lmspring3PresetIconfile) ($srcWindows+$lmspringFolder+$lmspring3PresetIconfile);
+sysFile -copy ($destWindows+$lmspringFolder+$lmspring3PresetTIconfile) ($srcWindows+$lmspringFolder+$lmspring3PresetTIconfile);
+
+
+shelfButton
+        -annotation "LMspring3"
+        -label "LMspring3"
+        -image $icon
+        -image1 $icon
+        -style "iconOnly"
+        -command "import LMspring3.LMspring3 as lms3\nlmspring=lms3.LMspring()\nlmspring.showUI()"
+        -sourceType "python"
+        ;
+
+global proc asInstallScriptLocator(){}
+
+global proc string asInstallScriptLocation ()
+{
+string $whatIs=`whatIs asInstallScriptLocator`;
+string $fullPath=`substring $whatIs 25 999`;
+string $buffer[];
+int $numTok=`tokenize $fullPath "/" $buffer`;
+int $numLetters=size($fullPath);
+int $numLettersLastFolder=size($buffer[$numTok-1]);
+string $scriptLocation=`substring $fullPath 1 ($numLetters-$numLettersLastFolder)`;
+return $scriptLocation;
+}

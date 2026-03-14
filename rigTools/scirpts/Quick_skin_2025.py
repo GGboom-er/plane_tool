@@ -1,27 +1,22 @@
 #!/usr/bin/env python
-# _*_ coding:cp936 _*_
+# _*_ coding:utf-8 _*_
 
 """
 @author: GGboom
 @desc:
-    Quick Skin Picker + ¹Ø½ÚÆÁÄ»±ê¼Ç + Ïà»úĞı×ªÊàÖá (Tumble Pivot) ¶ÔÆë
+    Quick Skin Picker + å…³èŠ‚å±å¹•æ ‡è®° + ç›¸æœºæ—‹è½¬æ¢è½´å¯¹é½
+    [çº¯ API 2.0 ç»ˆæç”Ÿäº§ç¯å¢ƒçº§ç¨³å¥ç‰ˆ - V2.0 Final]
 
-    - »ùÓÚ Quick_skin_2025 Ô­Âß¼­£ºÉäÏßÑ¡Ãæ + skinCluster È¨ÖØ²éÑ¯
-    - È¨ÖØ²éÑ¯Ê¹ÓÃ API2.0 MFnSkinCluster.getWeights ¸ßĞÔÄÜÊµÏÖ
-    - ĞÂÔö£º
-        * Ğ¡ÂÌµã + Ğü¸¡±êÇ©£¬±ê¼Ç¹Ç÷ÀÆÁÄ»Î»ÖÃ
-        * Ïà»ú Alt Ğı×ªÎ§ÈÆ¸Ã¹Ç÷ÀĞı×ª£¨Í¨¹ı Tumble Pivot£©
+    æ ¸å¿ƒå‡çº§:
+    1. å½»åº•å‰”é™¤ API 1.0 (OpenMaya)ï¼Œå…¨çº¿ä½¿ç”¨ API 2.0 (maya.api.OpenMaya)ã€‚
+    2. ä¸¥æ ¼æ ¡å‡† viewToWorld ä¸ closestIntersection çš„ C++ å†…å­˜æŒ‡é’ˆä¼ å‚ã€‚
+    3. å¼•å…¥å…¨å±€ç”Ÿå‘½å‘¨æœŸæ¥ç®¡ (Global Lifecycle Management)ï¼Œå½»åº•æœç»çƒ­é”®å¤šå¼€å¯¼è‡´çš„ Qt çº¿ç¨‹å´©æºƒ (Fatal Error)ã€‚
+    4. ç§»é™¤åŒé‡ UI å†²çªï¼Œç¡®ä¿ HUD æ¸…çˆ½ã€‚
 """
-
-from __future__ import print_function
 
 import sys
 
-# --- API 1.0£ºÊÓÍ¼ / Ïà»ú / ÉäÏß -------------------------------------------
-import maya.OpenMayaUI as omui
-import maya.OpenMaya as om
-
-# --- API 2.0£º¸ßĞÔÄÜÈ¨ÖØ / ÊÀ½ç×ø±ê / ÆÁÄ»×ø±ê -------------------------------
+# --- API 2.0ï¼šé«˜æ€§èƒ½åº•å±‚æ¡†æ¶ -----------------------------------------------
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaUI as omui2
 import maya.api.OpenMayaAnim as oma2
@@ -34,20 +29,16 @@ import shiboken6
 
 
 # ----------------------------------------------------------------------
-# È«¾Ö UI µ¥Àı
+# æ‚¬æµ® UI æ¨¡å— (PySide6)
 # ----------------------------------------------------------------------
-_overlay_widget = None
-
-
 class BoneInfoOverlay(QtWidgets.QWidget):
     """
-    ÆÁÄ»Ğü¸¡±êÇ©£º
-    - ×ó²àĞ¡ÂÌµã´ú±í¹Ç÷ÀÆÁÄ»Î»ÖÃ
-    - ÓÒ²àºÚµ×ÎÄ×ÖÏÔÊ¾¹Ç÷ÀÃû + ±ÊË¢Ä£Ê½
+    å±å¹•æ‚¬æµ®æ ‡ç­¾ (çº¯å‡€ç‰ˆ)
     """
 
-    def __init__(self, parent=None):
-        super(BoneInfoOverlay, self).__init__(parent)
+    def __init__( self, parent=None ):
+        # å¼ºåˆ¶ä½¿ç”¨ Python 3 æ— å‚ super()ï¼Œå…ç–« __main__ å‘½åç©ºé—´ç±»é‡è½½å¯¼è‡´çš„ TypeError
+        super().__init__(parent)
 
         self.setWindowFlags(
             QtCore.Qt.FramelessWindowHint |
@@ -58,7 +49,7 @@ class BoneInfoOverlay(QtWidgets.QWidget):
         self.setAttribute(QtCore.Qt.WA_TransparentForMouseEvents, True)
 
         layout = QtWidgets.QHBoxLayout(self)
-        layout.setContentsMargins(18, 10, 10, 10)  # ×ó±ß¸øÂÌµã
+        layout.setContentsMargins(18, 10, 10, 10)
 
         self.label = QtWidgets.QLabel()
         self.label.setTextFormat(QtCore.Qt.RichText)
@@ -82,26 +73,23 @@ class BoneInfoOverlay(QtWidgets.QWidget):
         self._anim.setEasingCurve(QtCore.QEasingCurve.InQuad)
         self._anim.finished.connect(self.hide)
 
-    def paintEvent(self, event):
-        # ×ó²à»­ÊµĞÄÂÌµã
+    def paintEvent( self, event ):
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
         painter.setPen(QtCore.Qt.NoPen)
         painter.setBrush(QtGui.QColor(0, 255, 0))
         painter.drawEllipse(QtCore.QPoint(10, 10), 10, 10)
-        super(BoneInfoOverlay, self).paintEvent(event)
 
-    def show_info(self, html_text, screen_x, screen_y):
-        # µ¥Àı¸´ÓÃ£ºÖ»¸üĞÂÄÚÈİºÍÎ»ÖÃ
+        super().paintEvent(event)
+
+    def show_info( self, html_text, screen_x, screen_y ):
         try:
             self._anim.stop()
         except RuntimeError:
-            return
+            pass
 
         self.label.setText(html_text)
         self.adjustSize()
-
-        # ÂÌµãÖĞĞÄ¶ÔÆëµ½ screen_x/y
         self.move(int(screen_x - 10), int(screen_y - 10))
 
         self._opacity_effect.setOpacity(1.0)
@@ -113,12 +101,9 @@ class BoneInfoOverlay(QtWidgets.QWidget):
 
 
 # ----------------------------------------------------------------------
-# ÊÓÍ¼ / Êó±ê×ø±ê
+# è§†å£ (Viewport) ä¸å°„çº¿å·¥å…· (Raycast) (çº¯ API 2.0)
 # ----------------------------------------------------------------------
 def _get_active_view():
-    """
-    Ê¹ÓÃ API2.0 »ñÈ¡µ±Ç° 3D ÊÓÍ¼ºÍ¶ÔÓ¦ QWidget
-    """
     view = omui2.M3dView.active3dView()
     widget_ptr = view.widget()
     if widget_ptr is None:
@@ -128,9 +113,6 @@ def _get_active_view():
 
 
 def _get_scene_pos_from_mouse():
-    """
-    Êó±êÆÁÄ»×ø±ê -> µ±Ç°ÊÓ¿Ú×ø±ê (×óÏÂÎªÔ­µã£¬ÓÃÓÚ view.viewToWorld)
-    """
     view, widget = _get_active_view()
     if widget is None:
         return None
@@ -141,69 +123,56 @@ def _get_scene_pos_from_mouse():
     return local_pos.x(), view_height - local_pos.y()
 
 
-# ----------------------------------------------------------------------
-# ÉäÏßÑ¡Ãæ£¨API 1.0£©
-# ----------------------------------------------------------------------
-def getFaceIDbyMouseCursor(mesh_name):
-    """
-    Ê¹ÓÃ OpenMaya (API1.0) ÉäÏßÊ°È¡£¬·µ»Ø "meshShape.f[index]" ×Ö·û´®
-    """
+def getFaceIDbyMouseCursor( mesh_name ):
     if not cmds.objExists(mesh_name):
-        cmds.warning(u"Mesh '{}' ²»´æÔÚ".format(mesh_name))
         return None
 
     scene_pos = _get_scene_pos_from_mouse()
     if scene_pos is None:
         return None
 
-    view = omui.M3dView.active3dView()
-    pos = om.MPoint()
-    direction = om.MVector()
-    view.viewToWorld(int(scene_pos[0]), int(scene_pos[1]), pos, direction)
-    pos2 = om.MFloatPoint(pos.x, pos.y, pos.z)
+    view, _ = _get_active_view()
 
-    sel_list = om.MSelectionList()
+    # API 2.0 ä¸¥æ ¼ä¼ å‚ï¼šå¼ºåˆ¶åˆ†é…æ¥æ”¶æŒ‡é’ˆçš„å†…å­˜ç©ºé—´
+    ray_source = om2.MPoint()
+    ray_direction = om2.MVector()
+    view.viewToWorld(int(scene_pos[0]), int(scene_pos[1]), ray_source, ray_direction)
+
+    # å¼ºåˆ¶ç±»å‹è½¬æ¢ï¼šclosestIntersection ä»…æ¥å— MFloat å˜ä½“
+    ray_source_float = om2.MFloatPoint(ray_source)
+    ray_direction_float = om2.MFloatVector(ray_direction)
+
+    sel_list = om2.MSelectionList()
     sel_list.add(mesh_name)
-    dag_path = om.MDagPath()
-    sel_list.getDagPath(0, dag_path)
-    if dag_path.apiType() == om.MFn.kTransform:
+    dag_path = sel_list.getDagPath(0)
+
+    if dag_path.apiType() == om2.MFn.kTransform:
         dag_path.extendToShape()
-    fn_mesh = om.MFnMesh(dag_path)
 
-    hit_point = om.MFloatPoint()
-    hit_face_util = om.MScriptUtil()
-    hit_face_ptr = hit_face_util.asIntPtr()
+    fn_mesh = om2.MFnMesh(dag_path)
 
-    intersection = fn_mesh.closestIntersection(
-        pos2,
-        om.MFloatVector(direction),
-        None, None, False,
-        om.MSpace.kWorld,
-        99999.0,
-        False,
-        None,
-        hit_point,
-        None,
-        hit_face_ptr,
-        None, None, None
-    )
+    try:
+        hit_info = fn_mesh.closestIntersection(
+            ray_source_float,
+            ray_direction_float,
+            om2.MSpace.kWorld,
+            99999.0,
+            False
+        )
 
-    if not intersection:
-        cmds.warning(u"ÉäÏßÃ»ÓĞ»÷ÖĞÄ£ĞÍ")
+        if hit_info:
+            hit_face_idx = hit_info[2]
+            return "{}.f[{}]".format(mesh_name, hit_face_idx)
+    except RuntimeError:
         return None
 
-    hit_face = hit_face_util.getInt(hit_face_ptr)
-    return "{}.f[{}]".format(mesh_name, hit_face)
+    return None
 
 
 # ----------------------------------------------------------------------
-# API2.0£º¸ßĞÔÄÜ×î´óÈ¨ÖØ¹Ç÷À²éÑ¯
+# é«˜æ€§èƒ½æƒé‡æå– (Skin Weight Data) (çº¯ API 2.0)
 # ----------------------------------------------------------------------
-def get_max_influence_api2(face_id, skin_name):
-    """
-    Ê¹ÓÃ MFnSkinCluster.getWeights ²éÑ¯ face ÉÏ×î´óÈ¨ÖØµÄ¹Ç÷À
-    ·µ»Ø: (bone_name, bone_dagPath(API2.0))
-    """
+def get_max_influence_api2( face_id, skin_name ):
     if not face_id or not skin_name:
         return None, None
 
@@ -211,49 +180,32 @@ def get_max_influence_api2(face_id, skin_name):
         obj_part, comp = face_id.split('.f[')
         face_index = int(comp.rstrip(']'))
     except Exception:
-        cmds.warning(u"face_id ½âÎöÊ§°Ü: {}".format(face_id))
         return None, None
 
     sel = om2.MSelectionList()
-    try:
-        sel.add(obj_part)
-        dag_path = sel.getDagPath(0)
-    except Exception as e:
-        cmds.warning(u"»ñÈ¡ mesh DagPath Ê§°Ü: {} -> {}".format(obj_part, e))
-        return None, None
+    sel.add(obj_part)
+    dag_path = sel.getDagPath(0)
 
     if dag_path.apiType() == om2.MFn.kTransform:
         dag_path.extendToShape()
 
-    try:
-        fn_mesh = om2.MFnMesh(dag_path)
-        vtx_ids = fn_mesh.getPolygonVertices(face_index)
-    except Exception as e:
-        cmds.warning(u"»ñÈ¡¶à±ßĞÎ¶¥µãÊ§°Ü: face {} -> {}".format(face_index, e))
-        return None, None
+    fn_mesh = om2.MFnMesh(dag_path)
+    vtx_ids = fn_mesh.getPolygonVertices(face_index)
 
     if not vtx_ids:
         return None, None
 
     sel_skin = om2.MSelectionList()
-    try:
-        sel_skin.add(skin_name)
-        skin_obj = sel_skin.getDependNode(0)
-        fn_skin = oma2.MFnSkinCluster(skin_obj)
-    except Exception as e:
-        cmds.warning(u"´´½¨ MFnSkinCluster Ê§°Ü: {}".format(e))
-        return None, None
+    sel_skin.add(skin_name)
+    skin_obj = sel_skin.getDependNode(0)
+    fn_skin = oma2.MFnSkinCluster(skin_obj)
 
     comp_fn = om2.MFnSingleIndexedComponent()
     comp = comp_fn.create(om2.MFn.kMeshVertComponent)
     comp_fn.addElements(vtx_ids)
 
-    try:
-        weights, inf_count = fn_skin.getWeights(dag_path, comp)
-        inf_paths = fn_skin.influenceObjects()
-    except Exception as e:
-        cmds.warning(u"¶ÁÈ¡ skinCluster È¨ÖØÊ§°Ü: {}".format(e))
-        return None, None
+    weights, inf_count = fn_skin.getWeights(dag_path, comp)
+    inf_paths = fn_skin.influenceObjects()
 
     if not weights or not inf_paths or inf_count <= 0:
         return None, None
@@ -271,21 +223,16 @@ def get_max_influence_api2(face_id, skin_name):
 
 
 # ----------------------------------------------------------------------
-# ÆÁÄ»×ø±ê£¨API 2.0 worldToView£©
+# ç›¸æœºæ¢è½´å¯¹é½ (Camera Pivot Alignment)
 # ----------------------------------------------------------------------
-def get_bone_screen_pos(bone_dag_path):
-    """
-    joint ÊÀ½ç×ø±ê -> µ±Ç°ÊÓ¿ÚÆÁÄ»×ø±ê (global x,y)
-    ÓÃÓÚĞ¡ÂÌµã + HUD ¶¨Î»
-    """
+def get_bone_screen_pos( bone_dag_path ):
     try:
         view, widget = _get_active_view()
         if widget is None:
             return None
 
         fn_trans = om2.MFnTransform(bone_dag_path)
-        world_vec = fn_trans.translation(om2.MSpace.kWorld)
-        world_pt = om2.MPoint(world_vec)
+        world_pt = om2.MPoint(fn_trans.translation(om2.MSpace.kWorld))
 
         x, y, _ = view.worldToView(world_pt)
         view_h = view.portHeight()
@@ -293,65 +240,33 @@ def get_bone_screen_pos(bone_dag_path):
         local_pos = QtCore.QPoint(int(x), int(view_h - y))
         global_pos = widget.mapToGlobal(local_pos)
         return global_pos.x(), global_pos.y()
-    except Exception as e:
-        sys.stderr.write("Quick_skin: get_bone_screen_pos failed: %s\n" % e)
+    except Exception:
         return None
 
 
-# ----------------------------------------------------------------------
-# Ïà»úĞı×ªÊàÖá£º**¹Ø¼üĞŞÕıµã**£¨È«²¿Ê¹ÓÃ API 1.0£©
-# ----------------------------------------------------------------------
-def update_camera_tumble_pivot(bone_dag_path):
-    """
-    ½«µ±Ç°ÊÓ¿ÚÏà»úµÄ Tumble Pivot ÉèÖÃµ½Ö¸¶¨¹Ç÷ÀÊÀ½ç×ø±ê¡£
-    ÕâÀïÍêÈ«Ê¹ÓÃ API1.0 (OpenMaya/OpenMayaUI)£¬±ÜÃâÇ©ÃûÎÊÌâ¡£
-    """
+def update_camera_tumble_pivot( bone_dag_path ):
     try:
-        # 1) °Ñ API2.0 µÄ DagPath ×ª³ÉÃû×Ö£¬ÔÙ×ß API1.0
-        try:
-            bone_name = bone_dag_path.fullPathName()
-        except Exception:
-            bone_name = str(bone_dag_path)
+        fn_t = om2.MFnTransform(bone_dag_path)
+        world_vec = fn_t.translation(om2.MSpace.kWorld)
 
-        sel = om.MSelectionList()
-        sel.add(bone_name)
-        bone_dag1 = om.MDagPath()
-        sel.getDagPath(0, bone_dag1)
+        view, _ = _get_active_view()
+        cam_dag = view.getCamera()
+        cam_shape_name = cam_dag.partialPathName()
 
-        fn_t = om.MFnTransform(bone_dag1)
-        world_vec = fn_t.translation(om.MSpace.kWorld)
-        world_pt = om.MPoint(world_vec)
+        cmds.setAttr("{}.tumblePivot".format(cam_shape_name), world_vec.x, world_vec.y, world_vec.z)
 
-        # 2) »ñÈ¡µ±Ç°ÊÓ¿ÚÏà»ú (API1.0 Ç©Ãû£ºgetCamera(MDagPath&))
-        view = omui.M3dView.active3dView()
-        cam_dag1 = om.MDagPath()
-        view.getCamera(cam_dag1)
-
-        fn_cam1 = om.MFnCamera(cam_dag1)
-        fn_cam1.setTumblePivot(world_pt)   # ÕæÕıÉèÖÃ Tumble Pivot
-
-        cam_shape_name = cam_dag1.fullPathName()
-
-        # 3) È·±£Ïà»ú²»ÆôÓÃ¡°±¾µØÖáÊàÖá¡±£¨usePivotAsLocalSpace£©
         if cmds.attributeQuery("usePivotAsLocalSpace", node=cam_shape_name, exists=True):
-            try:
-                cmds.setAttr(cam_shape_name + ".usePivotAsLocalSpace", 0)
-            except Exception:
-                pass
+            cmds.setAttr("{}.usePivotAsLocalSpace".format(cam_shape_name), 0)
 
-        # 4) È·±£ tumbleContext Ê¹ÓÃ Tumble Pivot Ä£Ê½ (localTumble=0)
         if cmds.contextInfo("tumbleContext", exists=True):
-            try:
-                cmds.tumbleCtx("tumbleContext", e=True, localTumble=0)
-            except Exception:
-                pass
+            cmds.tumbleCtx("tumbleContext", e=True, localTumble=0)
 
     except Exception as e:
-        sys.stderr.write("Quick_skin: update_camera_tumble_pivot failed: %s\n" % e)
+        sys.stderr.write("Quick_skin Pivot Update Failed: %s\n" % e)
 
 
 # ----------------------------------------------------------------------
-# Skin Paint ¹¤¾ß£º±£³ÖÄãÔ­À´µÄÂß¼­£¨×Ô¶¯ÇĞ»»¼Ó/Ìæ£©
+# ç¬”åˆ·æ“ä½œè°ƒåº¦ (Paint Context Logic)
 # ----------------------------------------------------------------------
 def editSkinWeightTools():
     current_context = cmds.currentCtx()
@@ -365,13 +280,12 @@ def editSkinWeightTools():
         cmds.artAttrSkinPaintCtx('artAttrSkinContext', edit=True, sao='additive', value=0.025)
 
 
-def callPaintListWindowWithSetInfluence(max_inf):
+def callPaintListWindowWithSetInfluence( max_inf ):
     if not max_inf:
         return
 
     mel.eval('artSkinInflListChanging "{}" 1'.format(max_inf))
     mel.eval('artSkinInflListChanged artAttrSkinPaintCtx')
-    cmds.headsUpMessage('{}'.format(max_inf), time=1)
 
     try:
         cmds.artAttrSkinPaintCtx('artAttrSkinContext', edit=True, inf=max_inf)
@@ -380,7 +294,7 @@ def callPaintListWindowWithSetInfluence(max_inf):
 
 
 def _build_brush_info_html():
-    mode_str = u"Î´Öª"
+    mode_str = u"æœªçŸ¥"
     try:
         op = cmds.artAttrSkinPaintCtx('artAttrSkinContext', query=True, sao=True)
         val = cmds.artAttrSkinPaintCtx('artAttrSkinContext', query=True, value=True)
@@ -396,26 +310,27 @@ def _build_brush_info_html():
 
 
 # ----------------------------------------------------------------------
-# ×ÜÁ÷³Ì£ºÑ¡ÖĞ -> ÉäÏßÑ¡Ãæ -> ÕÒ×î´óÈ¨ÖØ¹Ç÷À -> Ë¢È¨ -> HUD -> Ïà»úÊàÖá
+# ä¸»ç¨‹åºå…¥å£ (Main Execution)
 # ----------------------------------------------------------------------
 def mainFunc():
-    global _overlay_widget
+    # [æ ¸å¿ƒä¿®å¤] çƒ­é”®æ‰§è¡Œé˜²çˆ†ç ´ï¼šå¼ºè¡Œæ¥ç®¡åƒåœ¾å›æ”¶ï¼Œé”€æ¯æ—§å®ä¾‹
+    if "_quick_skin_overlay" in globals():
+        old_widget = globals()["_quick_skin_overlay"]
+        if old_widget is not None and shiboken6.isValid(old_widget):
+            old_widget.close()
+            old_widget.deleteLater()
+
+    globals()["_quick_skin_overlay"] = None
 
     sel = cmds.ls(selection=True, long=True, fl=True)
     if not sel:
-        cmds.warning(u'ÇëÏÈÑ¡ÔñÒ»¸öÃÉÆ¤Ä£ĞÍ»òÆä×é¼ş')
+        cmds.warning(u'è¯·å…ˆé€‰æ‹©ä¸€ä¸ªè’™çš®æ¨¡å‹ (Skinned Mesh) æˆ–å…¶ç»„ä»¶')
         return
 
     first = sel[0]
-
-    # transform / shape / component Í³Ò»´¦Àí
-    if '.' in first:
-        base = first.split('.')[0]
-    else:
-        base = first
+    base = first.split('.')[0] if '.' in first else first
 
     if not cmds.objExists(base):
-        cmds.warning(u"Ñ¡ÖĞµÄ¶ÔÏó²»´æÔÚ: {}".format(base))
         return
 
     node_type = cmds.nodeType(base)
@@ -426,45 +341,30 @@ def mainFunc():
     else:
         mesh_transform = cmds.ls(base, long=True)[0]
         shapes = cmds.listRelatives(mesh_transform, shapes=True, noIntermediate=True, fullPath=True) or []
-        mesh_shape = None
-        for s in shapes:
-            if cmds.nodeType(s) == 'mesh':
-                mesh_shape = s
-                break
+        mesh_shape = next((s for s in shapes if cmds.nodeType(s) == 'mesh'), None)
 
     if not mesh_transform or not mesh_shape:
-        cmds.warning(u"Ñ¡ÖĞµÄ¶ÔÏóÃ»ÓĞÓĞĞ§µÄ mesh ĞÎ½Úµã")
         return
 
-    # 1) ÉäÏßÊ°È¡Ãæ
     face_id = getFaceIDbyMouseCursor(mesh_shape)
     if not face_id:
         return
 
-    # 2) ÕÒ skinCluster
     skin = mel.eval('findRelatedSkinCluster("{}");'.format(mesh_transform))
     if not skin:
-        cmds.warning(u"Î´ÕÒµ½Óë '{}' ¹ØÁªµÄ skinCluster".format(mesh_transform))
         return
 
-    # 3) ¸ßĞÔÄÜ²éÑ¯×î´óÈ¨ÖØ¹Ç÷À
     bone_name, bone_dag = get_max_influence_api2(face_id, skin)
     if not bone_name or bone_dag is None:
-        cmds.warning(u"ÎŞ·¨»ñÈ¡×î´óÈ¨ÖØ¹Ç÷À")
         return
 
-    # 4) ´ò¿ª / ÇĞ»»È¨ÖØË¢£¬²¢ÉèÖÃÓ°Ïì
     editSkinWeightTools()
     callPaintListWindowWithSetInfluence(bone_name)
     mel.eval('artSkinRevealSelected artAttrSkinPaintCtx')
 
-    # 5) ¼ÆËã¹Ç÷ÀÆÁÄ»Î»ÖÃ
     screen_pos = get_bone_screen_pos(bone_dag)
-
-    # 6) Ïà»úĞı×ªÊàÖáÉèÖÃµ½¸Ã¹Ç÷À
     update_camera_tumble_pivot(bone_dag)
 
-    # 7) HUD£ºÂÌÉ«µã + ¹Ç÷ÀÃû + ±ÊË¢Ä£Ê½
     display_name = bone_name.split('|')[-1]
     brush_info = _build_brush_info_html()
     html = (
@@ -473,12 +373,15 @@ def mainFunc():
     ).format(bone=display_name, mode=brush_info)
 
     if screen_pos:
-        if _overlay_widget is None or not shiboken6.isValid(_overlay_widget):
-            _overlay_widget = BoneInfoOverlay()
-        _overlay_widget.show_info(html, screen_pos[0], screen_pos[1])
+        _, viewport_widget = _get_active_view()
+        # å®ä¾‹åŒ–å¹¶æ³¨å…¥å…¨å±€å­—å…¸ä»¥ä¾›è¿½è¸ªé”€æ¯
+        new_overlay = BoneInfoOverlay(parent=viewport_widget)
+        globals()["_quick_skin_overlay"] = new_overlay
+        new_overlay.show_info(html, screen_pos[0], screen_pos[1])
     else:
-        cmds.headsUpMessage(u"{} | {}".format(display_name, brush_info), time=1.0)
+        # å®¹é”™ï¼šå½“å±å¹•åæ ‡è½¬æ¢å¤±è´¥æ—¶ï¼Œå›é€€åˆ°æ™®é€šæ‰“å°æ§åˆ¶å°è¾“å‡º
+        print(u"Quick_skin: {} | {}".format(display_name, brush_info))
 
 
-
-mainFunc()
+if __name__ == "__main__":
+    mainFunc()

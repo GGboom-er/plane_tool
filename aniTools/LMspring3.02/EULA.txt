@@ -1,0 +1,31 @@
+End User License Agreement (EULA)
+For Maya Scripts by Luismi Herrera (Luis Miguel Herrera Vela)
+
+This End User License Agreement ("Agreement") governs the use of the Maya script(s) provided by Luismi Herrera ("Author"), also known legally as Luis Miguel Herrera Vela. By downloading, installing, or using the script(s), you ("User") agree to the terms outlined below.
+
+1. License Grant
+The Author grants you a non-exclusive, non-transferable license to download and use the script(s) in both personal and commercial projects. This includes use in the development of films, animations, games, visualizations, and other media.
+
+2. Ownership
+All rights, title, and interest in and to the script(s), including all associated intellectual property rights, remain with the Author. This Agreement does not transfer ownership.
+
+3. Restrictions
+You may not:
+- Resell, sublicense, or redistribute the script(s), modified or unmodified, as standalone files or as part of a toolset.
+- Use the script(s) to create or contribute to products that directly compete with or repackage the script(s) themselves.
+- Claim authorship or sole ownership of the original script(s).
+
+4. Attribution
+Attribution to Luismi Herrera is optional but appreciated when the script(s) are used in public-facing or published works.
+
+5. Donations
+The script(s) are provided free of charge. Donations, if offered, are voluntary and do not grant additional rights or warranties.
+
+6. Disclaimer of Warranty
+The script(s) are provided “as is” without any express or implied warranties. The Author is not liable for any damages or losses resulting from the use or misuse of the script(s).
+
+7. Termination
+This Agreement is effective until terminated. It will terminate automatically if you breach any of its terms. Upon termination, you must cease use of and delete all copies of the script(s).
+
+8. Governing Law
+This Agreement shall be governed by and construed in accordance with the laws of England and Wales, without regard to its conflict of law provisions.
