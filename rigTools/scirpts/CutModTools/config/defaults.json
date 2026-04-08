@@ -1,0 +1,9 @@
+{
+    "threshold": 0.001,
+    "mode": "matrix",
+    "keep_original": true,
+    "display_layer_color": 18,
+    "display_layer_type": 2,
+    "group_name": "CutModGeometry",
+    "layer_name": "CutMod"
+}
